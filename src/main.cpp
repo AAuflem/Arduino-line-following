@@ -82,6 +82,30 @@ void MotorB(int motor, int spd){
 
 }
 }
+//---
+void turnRight(){
+  MotorA(1, speed);
+  MotorB(0, 0);
+}
+
+void turnLeft(){
+  MotorB(1, speed);
+  MotorA(0, 0);
+}
+
+void turnInPlaceR(){
+  double scalingFactor = 1; //  can be changed to change the speed (0-1)
+  MotorA(1, speed * scalingFactor);
+  MotorB(-1, speed * scalingFactor);
+}
+
+void turnInPlaceL(){
+  double scalingFactor = 1; //  can be changed to change the speed (0-1)
+  MotorB(1, speed * scalingFactor);
+  MotorA(-1, speed * scalingFactor);
+}
+
+//---
 
 // kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
 //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
@@ -129,21 +153,6 @@ void goStraight(int dir, double factor){
   MotorA(dir, speed* factor);
   MotorB(dir, speed* factor);
 }
-
-
-
-void turnInPlaceR(){
-  double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorA(1, speed * scalingFactor);
-  MotorB(-1, speed * scalingFactor);
-}
-
-void turnInPlaceL(){
-  double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorB(1, speed * scalingFactor);
-  MotorA(-1, speed * scalingFactor);
-}
-
 
 // returns the turning direction (0 == straight, 1== right, -1 == left), if it shoud keep going (0 == stop, 1 == go, -1 == back up) and if there is a T-section
  void lineDetection(){
@@ -209,10 +218,33 @@ void turnInPlaceL(){
     }
 }
 
+void simpleFollowLine(){
+  lineDetection();
+  if(lineDetectArray[1]==1){
+
+    if(lineDetectArray[0] == 0){
+      goStraight(1, 1.0);
+    }
+
+    if(lineDetectArray[0]== 1){
+      turnRight();
+    }
+    if(lineDetectArray[0]== -1)
+      turnLeft();
+    }
+  else if(lineDetectArray[1]== 0){ //stopping
+    goStraight(0, 0); 
+  }
+  else if(lineDetectArray[1]== -1){ //reversing
+    goStraight(-1, 0.5);
+  }
+
+}
+
 
 void followLine(){
-double setTurn =3;
-lineDetection();
+  double setTurn =3;
+  lineDetection();
   if(lineDetectArray[1]==1){
 
     if(lineDetectArray[0] == 0){
