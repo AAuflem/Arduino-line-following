@@ -32,6 +32,11 @@ int n=1;
 //array containing the return-values of lineDetect();
 int lineDetectArray[3] = {0, 0, 0};
 
+//buffers
+int dirBuffer;
+int deltaT;
+unsigned long prevTime;
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -84,13 +89,13 @@ void MotorB(int motor, int spd){
 }
 //---
 void turnRight(){
-  MotorA(1, speed);
-  MotorB(0, 0);
+  MotorA(1, speed*1.5);
+  MotorB(-1, speed*0.9);
 }
 
 void turnLeft(){
-  MotorB(1, speed);
-  MotorA(0, 0);
+  MotorB(1, speed*1.5);
+  MotorA(-1, speed*0.9);
 }
 
 void turnInPlaceR(){
@@ -105,7 +110,15 @@ void turnInPlaceL(){
   MotorA(-1, speed * scalingFactor);
 }
 
+//dir = 1 forward, dir = -1 backwards, dir = 0 stop
+void goStraight(int dir, double factor){
+  int scaledSpeed= (int) (speed* factor);
+  MotorA(dir, scaledSpeed);
+  MotorB(dir, scaledSpeed);
+}
 //---
+
+
 
 // kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
 //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
@@ -147,100 +160,108 @@ void turnL(double percent){
     MotorA(1, speed * downscalingFactor);
   }
 }
-//dir = 1 forward, dir = -1 backwards, dir = 0 stop
-void goStraight(int dir, double factor){
 
-  MotorA(dir, speed* factor);
-  MotorB(dir, speed* factor);
+
+//stores the last non-zero value of detected turning direction
+void lastDirBuff(){
+  if(lineDetectArray[0]!=0){
+    dirBuffer = lineDetectArray[0];
+  }
 }
 
 // returns the turning direction (0 == straight, 1== right, -1 == left), if it shoud keep going (0 == stop, 1 == go, -1 == back up) and if there is a T-section
- void lineDetection(){
+void lineDetection(){
       // when the digitalRead is LOW, no signal is returning to the sensor. aka the sensor is detecting the black line.
       // the middle sensor is opposite, (LOW/HIGH)
-    if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH)
-    {
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)== HIGH and digitalRead(IR_R)==HIGH){
       // code for driving straight
-      lineDetectArray[0]= 0;
-      lineDetectArray[1]= 1;
-      lineDetectArray[2]= 0;
-    }
-    if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
-    {
-      // code when ended up to the right
-      lineDetectArray[0]= -1;
-      lineDetectArray[1]= 1;
-      lineDetectArray[2]= 0;
-
-    }
+    lineDetectArray[0]= 0;
+    lineDetectArray[1]= 1;
+    lineDetectArray[2]= 0;
+  }
+  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH) {
+    // code when ended up to the right while detecting centre
+    lineDetectArray[0]= -1; // 0.5 AND MAKING IT A DOUBLE-ARRAY?
+    lineDetectArray[1]= 1;
+    lineDetectArray[2]= 0;
+  }
 //
-    if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH) 
-    {
-      // code when ended up to the right
-      lineDetectArray[0]= -1; // 0.5 AND MAKING IT A DOUBLE-ARRAY?
-      lineDetectArray[1]= 1;
-      lineDetectArray[2]= 0;
-
-    }
+  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
+  {
+    // code when ended up to the right
+    lineDetectArray[0]= -1; 
+    lineDetectArray[1]= 1;
+    lineDetectArray[2]= 0;
+  }
 //
-    if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW) 
-    {
-      // code when ended up to the Left
-      lineDetectArray[0]= 1;
-      lineDetectArray[1]= 1;
-      lineDetectArray[2]= 0;
-
-    }
-    //
-    if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW)
-    {
-      // code when ended up to the left
-      lineDetectArray[0]= 1; //0.5 AND MAKING IT A DOUBLE-ARRAY?
-      lineDetectArray[1]= 1;
-      lineDetectArray[2]= 0;
-
-    }
-    //
-    if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
-    {
-      // stop? // T-cross
-      lineDetectArray[0]= 0;
-      lineDetectArray[1]= -1;
-      lineDetectArray[2]= 0;
-    }
-    if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW) 
-    {
-      // Detecting a T section, need a T_counter
-      // T_count +=
-      lineDetectArray[0]= 0;
-      lineDetectArray[1]= 0;
-      lineDetectArray[2]= 1;
-    }
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW) 
+  {
+    // code when ended up to the Left AND DETECTING CE3NTRE
+    lineDetectArray[0]= 1;//0.5 AND MAKING IT A DOUBLE-ARRAY?
+    lineDetectArray[1]= 1;
+    lineDetectArray[2]= 0;
+  }
+  //
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW)
+  {
+    // code when ended up to the left
+    lineDetectArray[0]= 1; 
+    lineDetectArray[1]= 1;
+    lineDetectArray[2]= 0;
+  }
+  //
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
+  {
+    //back it up
+    lineDetectArray[0]= 0;
+    lineDetectArray[1]= -1;
+    lineDetectArray[2]= 0;
+  }
+  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW) 
+  {
+    // Detecting a T section, need a T_counter //maybe its the drive straight?
+    // T_count +=
+    lineDetectArray[0]= 0;
+    lineDetectArray[1]= 0;
+    lineDetectArray[2]= 1;
+  }
+  //lastDirBuff();
 }
+
+
 
 void simpleFollowLine(){
   lineDetection();
-  if(lineDetectArray[1]==1){
+   if(lineDetectArray[2]==0){
+      if(lineDetectArray[1]==1){
 
-    if(lineDetectArray[0] == 0){
-      goStraight(1, 1.0);
-    }
+        if(lineDetectArray[0] == 0){
+          goStraight(1, 1.0);
+        }
 
-    if(lineDetectArray[0]== 1){
-      turnRight();
+        if(lineDetectArray[0]== 1){
+          turnRight();
+        }
+        if(lineDetectArray[0]== -1){
+          turnLeft();
+        }
+      }
+    
+      else if(lineDetectArray[1]== 0){ //stopping
+        goStraight(0, 0); 
+      }
+      else if(lineDetectArray[1]== -1){ //reversing
+        goStraight(-1, 1);
     }
-    if(lineDetectArray[0]== -1)
-      turnLeft();
-    }
-  else if(lineDetectArray[1]== 0){ //stopping
-    goStraight(0, 0); 
-  }
-  else if(lineDetectArray[1]== -1){ //reversing
-    goStraight(-1, 0.5);
+   }
+  else if(lineDetectArray[2]==1){ 
+    goStraight(1, 1.0);  //its bow going to yeet past T-sections
   }
 
 }
 
+
+//------------ funksjonene nedenfor brukes ikke ---------------
 
 void followLine(){
   double setTurn =3;
@@ -315,13 +336,29 @@ void followLinePID(){
 }
 
 
+//ikke ferdig
+void outOfBoundsBuffer(){
+  int maxTime =300; //milliseconds
+  time = millis();
+  deltaT += time-prevTime;
+  if( deltaT < maxTime){
+    if(lineDetectArray[0]==0)
+
+   
+    prevTime=  time;
+  }
+  
+}
+
+
+
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
 // main loop, for now just for testing
 void loop() {
   time = millis();
-  speed =200;
+  speed =125;
   //speed =110;
   //speed = (int) (time/100) % 255;
   // if (time<10000){
@@ -336,7 +373,15 @@ void loop() {
   // else{
   //   turnL(1.0);
   // }
-  followLine();
+  simpleFollowLine();
+  //goStraight(1, 1.0);
+  //turnRight();
+
+ // int scaledSpeed = (int) (speed*1.0);
+ // int dir =1;
+ // MotorA(dir, scaledSpeed);
+ // MotorB(dir, scaledSpeed);
+  //MotorB(1, speed);
   // if(time <5000){
   // //  goStraight(-1, 1);
   //   turnR(2);
