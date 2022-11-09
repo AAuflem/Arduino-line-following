@@ -4,6 +4,11 @@
 enum STAGE{STARTUP, FIRST, SECOND, THIRD, FOURTH};
 STAGE current_stage{FIRST};
 
+enum FirstStage{Straight, TSection, Cup};
+FirstStage current_part_firstStage{Straight};
+
+enum ThirdStage{T1, OBSTACLES, T2};
+ThirdStage current_thirdStage{T1};
 // line detection pins
 const int IR_L = 8;
 const int IR_C = 12;
@@ -13,18 +18,26 @@ const int SPDA = 5;
 const int SPDB = 6;
 const int DirB = 7;
 const int DirA = 4;
+
+// turning in place speed
+int turningSpeed = 140;
+
 // camera
-const int camera = 2;
+const int Camera = 2;
+
 int cupSide = 0;
+// cup sensor
+const int CupDist = 3;
+
 //GRABBER
 #define ServoM 9
 Servo myservo;
-int posClosed = 150;
-int posOpen = 0;
-int posLower = 120;
+const int posClosed = 150;
+const int posOpen = 0;
+const int posLower = 120;
 
 unsigned long lastTime;
-enum STATE {INIT, Grab_state, Turn_state, Lower_state, Release_state}; // Enumerator for system states
+enum STATE {INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state, Lower_state, Release_state, Go_Next_state}; // Enumerator for system states
 STATE current_state{INIT};
 
 //PID declarations:
@@ -44,8 +57,6 @@ double cumError, rateError;
 const int maxSpeed = 150;
 //const double truningScaleFactor = 1; //between 0 and 1 ()
 int speed = 100; // ----------------------------------------------
-int i = 0;
-int n=1;
 //motorADir = motorADir*255;
 
 //array containing the return-values of lineDetect();
@@ -66,7 +77,8 @@ void setup() {
   pinMode(DirA, OUTPUT);
   pinMode(SPDB, OUTPUT);
   pinMode(DirB, OUTPUT);
-  pinMode(2, INPUT);
+  pinMode(CupDist, INPUT);
+  pinMode(Camera, INPUT);
   setPoint =0;
 
   pinMode(ServoM, OUTPUT);
@@ -123,15 +135,15 @@ void turnLeft(){
 }
 
 void turnInPlaceR(){
-  double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorA(1, speed * scalingFactor);
-  MotorB(-1, speed * scalingFactor);
+  //double scalingFactor = 1; //  can be changed to change the speed (0-1)
+  MotorA(1, turningSpeed);
+  MotorB(-1, turningSpeed);
 }
 
 void turnInPlaceL(){
-  double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorB(1, speed * scalingFactor);
-  MotorA(-1, speed * scalingFactor);
+  //double scalingFactor = 1; //  can be changed to change the speed (0-1)
+  MotorB(1, turningSpeed);
+  MotorA(-1, turningSpeed);
 }
 
 //dir = 1 forward, dir = -1 backwards, dir = 0 stop
@@ -283,9 +295,9 @@ void simpleFollowLine(){
         goStraight(-1, 1);
     }
    }
-  else if(lineDetectArray[2]==1){ 
-    stop();
-  }
+  //else if(lineDetectArray[2]==1){   //this is implemented in the main code now
+  //  stop();
+  //}
 
 }
 
@@ -411,8 +423,18 @@ void grabber(){
 		case (INIT):
 			myservo.write(posOpen);
 			lastTime = millis();
-			current_state = Grab_state;
+			current_state = Go_To_Cup;
 		break;
+
+    case (Go_To_Cup):
+      simpleFollowLine();
+      if(digitalRead(CupDist) == HIGH){
+        stop();
+        current_state = Grab_state;
+        lastTime = millis();
+        break;
+      }
+      break;
 		
 		case (Grab_state):
 			Grab();
@@ -435,6 +457,15 @@ void grabber(){
 			}
 		break;
 
+    case(Drive_state):
+      simpleFollowLine();
+      if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+        current_state = Lower_state;
+        lastTime = millis();
+        break;
+      }
+      break;
+
 		case (Lower_state):
       Lower();
       if (millis() - lastTime >= 500)
@@ -448,33 +479,156 @@ void grabber(){
     case (Release_state):
       Release();
 			goStraight(-1, 140);
-			while (millis() - lastTime >= 500) 
-			{
-				stop();
-				while(true); // inst this kinda bad?
+      lineDetection();
+			if (lineDetectArray[2] ==1){
+        current_state = Go_Next_state;
+        lastTime= millis();
+        break;
 			}
-			
-    break;
+      break;
+    case (Go_Next_state):
+      if(cupSide == -1){
+        turnInPlaceL();
+      }
+      else if(cupSide == 1){
+        turnInPlaceR();
+      }
+      if(time - lastTime >= 600){
+        current_stage = SECOND;
+      }
+      break;
   }
 }
 
 
+// ----------- startup
+void startup(){
 
+  lastTime= millis();
+  while(cupSide == 0){
+
+    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+        turnInPlaceL();
+    }
+    lastTime = millis();
+    while(millis()- lastTime <=4000)
+      if (digitalRead(Camera) == HIGH){
+        cupSide = -1;
+        break;
+
+      }
+		lastTime = millis();
+    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    if(cupSide != 0){
+      break;
+    }
+
+
+		lastTime = millis();
+    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    lastTime = millis();
+    while(millis()- lastTime <=4000)
+      if (digitalRead(Camera) == HIGH){
+        cupSide = 1;
+        break;
+
+      }
+		lastTime = millis();
+    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+      turnInPlaceL();
+    }
+  }
+}
+
+
+// ---- case switches for the stages
+void Stage1(){
+  switch(current_part_firstStage){
+    case (Straight):
+      simpleFollowLine();
+      if (lineDetectArray[2]== 1){
+        current_part_firstStage = TSection;
+        lastTime = millis();
+        break;
+      }
+      break;
+    case(TSection):
+      if(cupSide == -1){
+        turnInPlaceL(); //same as turn180 but with directional controll
+      }
+      else if(cupSide ==1){
+        turnInPlaceR();
+      }
+			if(millis() - lastTime >= 500){ //turns to the correct side to fetch the cup
+				current_part_firstStage = Cup;
+				lastTime = millis();
+        break;
+        }
+      break;
+
+    case(Cup):
+      grabber();
+      break;
+  }
+  }
+
+
+
+void Stage2(){
+  speed= 180; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+  simpleFollowLine();
+}
+
+void stage3(){
+switch(current_thirdStage){
+  case (T1):
+    turnInPlaceL();
+    if(millis()- lastTime >= 500){
+      current_thirdStage = OBSTACLES;
+      break;
+    }
+    break;
+  case (OBSTACLES):
+    simpleFollowLine();
+  break;
+
+}
+}
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
 // main loop, for now just for testing
-void loop() {
+void loop(){
   //time = millis();
   switch(current_stage){
-    case(STARTUP):
-    lastTime= millis();
-    while(millis() - lastTime >= 300){ // the constant need to be changed based on camera angle
-        turnInPlaceL();
-    }
+    case (STARTUP):
+      startup(); //this code should only be called once !!!!!
+      current_stage = FIRST;
+      break;
 
-				lastTime = millis();
+    case (FIRST):
+      Stage1();
+      break;
+    
+    case(SECOND):
+      Stage2();
+      if(lineDetectArray[2] ==1){
+        current_stage = THIRD;
+        lastTime = millis();
         break;
-      
+      }
+      break;
+
+    case (THIRD):
+
+      break;
+
+    case (FOURTH):
+
+      break;
   }
 }
