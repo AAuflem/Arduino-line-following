@@ -1,4 +1,9 @@
 #include <Arduino.h>
+#include <Servo.h>
+//for the different modes in the different stages
+enum STAGE{STARTUP, FIRST, SECOND, THIRD, FOURTH};
+STAGE current_stage{FIRST};
+
 // line detection pins
 const int IR_L = 8;
 const int IR_C = 12;
@@ -8,6 +13,20 @@ const int SPDA = 5;
 const int SPDB = 6;
 const int DirB = 7;
 const int DirA = 4;
+// camera
+const int camera = 2;
+int cupSide = 0;
+//GRABBER
+#define ServoM 9
+Servo myservo;
+int posClosed = 150;
+int posOpen = 0;
+int posLower = 120;
+
+unsigned long lastTime;
+enum STATE {INIT, Grab_state, Turn_state, Lower_state, Release_state}; // Enumerator for system states
+STATE current_state{INIT};
+
 //PID declarations:
 //constants
 double kp = 2;  // constant turning
@@ -22,9 +41,9 @@ double pidIn, pidOut, setPoint;
 double cumError, rateError;
 
 //motor controll declaration
-const int maxSpeed = 175;
+const int maxSpeed = 150;
 //const double truningScaleFactor = 1; //between 0 and 1 ()
-int speed;
+int speed = 100; // ----------------------------------------------
 int i = 0;
 int n=1;
 //motorADir = motorADir*255;
@@ -47,7 +66,12 @@ void setup() {
   pinMode(DirA, OUTPUT);
   pinMode(SPDB, OUTPUT);
   pinMode(DirB, OUTPUT);
+  pinMode(2, INPUT);
   setPoint =0;
+
+  pinMode(ServoM, OUTPUT);
+  myservo.attach(9);
+  myservo.write(posClosed);
   //pinMode(DirB, OUTPUT);
   
 }
@@ -89,12 +113,12 @@ void MotorB(int motor, int spd){
 }
 //---
 void turnRight(){
-  MotorA(1, speed*1.5);
+  MotorA(1, speed*1.6);
   MotorB(-1, speed*0.9);
 }
 
 void turnLeft(){
-  MotorB(1, speed*1.5);
+  MotorB(1, speed*1.6);
   MotorA(-1, speed*0.9);
 }
 
@@ -116,53 +140,58 @@ void goStraight(int dir, double factor){
   MotorA(dir, scaledSpeed);
   MotorB(dir, scaledSpeed);
 }
+
+void stop(){
+  MotorA(0, 0);
+  MotorB(0, 0);
+}
 //---
 
 
 
 // kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
-//tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
-void turnR(double percent){
-  double scaleFactor = 1.0; //scales the turning speed down when below 1.0
+// //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
+// void turnR(double percent){
+//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
 
-  double upscalingFactor = (double)(maxSpeed/speed);
-  double downscalingFactor =1.0;
-  double diff = percent - upscalingFactor;
-  speed = (int) speed*scaleFactor; //allowed to become an int
-  if(diff<=0){
-    MotorA(1, speed * (1+percent)); // mulig denne må forandres
-    MotorB(1, speed);
-  }
-  else if(diff>0){
-    upscalingFactor = percent - diff;      // should give max-speed
-    downscalingFactor = 1 -diff;         //reduces speed of second wheel
-    MotorA(1, speed * upscalingFactor);
-    MotorB(1, speed * downscalingFactor);
-  }
-}
-
-
-void turnL(double percent){
-  double scaleFactor = 1.0; //scales the turning speed down when below 1.0
-
-  double upscalingFactor = (double)(maxSpeed/speed);
-  double downscalingFactor =1.0;
-  double diff = percent - upscalingFactor;
-  speed = (int) speed*scaleFactor;
-  if(diff<=0){
-    MotorB(1, speed * (1+percent)); // mulig denne må forandres
-    MotorA(1, speed);
-  }
-  else if(diff>0){
-    upscalingFactor = percent - diff;      // should give max-speed
-    downscalingFactor = 1 -diff;         //reduces speed of second wheel
-    MotorB(1, speed * upscalingFactor);
-    MotorA(1, speed * downscalingFactor);
-  }
-}
+//   double upscalingFactor = (double)(maxSpeed/speed);
+//   double downscalingFactor =1.0;
+//   double diff = percent - upscalingFactor;
+//   speed = (int) speed*scaleFactor; //allowed to become an int
+//   if(diff<=0){
+//     MotorA(1, speed * (1+percent)); // mulig denne må forandres
+//     MotorB(1, speed);
+//   }
+//   else if(diff>0){
+//     upscalingFactor = percent - diff;      // should give max-speed
+//     downscalingFactor = 1 -diff;         //reduces speed of second wheel
+//     MotorA(1, speed * upscalingFactor);
+//     MotorB(1, speed * downscalingFactor);
+//   }
+// }
 
 
-//stores the last non-zero value of detected turning direction
+// void turnL(double percent){
+//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
+
+//   double upscalingFactor = (double)(maxSpeed/speed);
+//   double downscalingFactor =1.0;
+//   double diff = percent - upscalingFactor;
+//   speed = (int) speed*scaleFactor;
+//   if(diff<=0){
+//     MotorB(1, speed * (1+percent)); // mulig denne må forandres
+//     MotorA(1, speed);
+//   }
+//   else if(diff>0){
+//     upscalingFactor = percent - diff;      // should give max-speed
+//     downscalingFactor = 1 -diff;         //reduces speed of second wheel
+//     MotorB(1, speed * upscalingFactor);
+//     MotorA(1, speed * downscalingFactor);
+//   }
+// }
+
+
+//stores the last non-zero value of detected turning direction // not yet in use?
 void lastDirBuff(){
   if(lineDetectArray[0]!=0){
     dirBuffer = lineDetectArray[0];
@@ -173,11 +202,11 @@ void lastDirBuff(){
 void lineDetection(){
       // when the digitalRead is LOW, no signal is returning to the sensor. aka the sensor is detecting the black line.
       // the middle sensor is opposite, (LOW/HIGH)
-  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)== HIGH and digitalRead(IR_R)==HIGH){
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)== LOW and digitalRead(IR_R)==HIGH){
       // code for driving straight
-    lineDetectArray[0]= 0;
-    lineDetectArray[1]= 1;
-    lineDetectArray[2]= 0;
+    lineDetectArray[0]= 0; //turning direction (let/right)
+    lineDetectArray[1]= 1; //speed-direcion (forward/back)
+    lineDetectArray[2]= 0; //detercted T-section? (yes/no = 1/0)
   }
   if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH) {
     // code when ended up to the right while detecting centre
@@ -210,14 +239,14 @@ void lineDetection(){
     lineDetectArray[2]= 0;
   }
   //
-  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH) 
   {
     //back it up
     lineDetectArray[0]= 0;
     lineDetectArray[1]= -1;
     lineDetectArray[2]= 0;
   }
-  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW) 
+  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW) 
   {
     // Detecting a T section, need a T_counter //maybe its the drive straight?
     // T_count +=
@@ -248,14 +277,14 @@ void simpleFollowLine(){
       }
     
       else if(lineDetectArray[1]== 0){ //stopping
-        goStraight(0, 0); 
+        stop(); 
       }
       else if(lineDetectArray[1]== -1){ //reversing
         goStraight(-1, 1);
     }
    }
   else if(lineDetectArray[2]==1){ 
-    goStraight(1, 1.0);  //its bow going to yeet past T-sections
+    stop();
   }
 
 }
@@ -263,28 +292,28 @@ void simpleFollowLine(){
 
 //------------ funksjonene nedenfor brukes ikke ---------------
 
-void followLine(){
-  double setTurn =3;
-  lineDetection();
-  if(lineDetectArray[1]==1){
+// void followLine(){
+//   double setTurn =3;
+//   lineDetection();
+//   if(lineDetectArray[1]==1){
 
-    if(lineDetectArray[0] == 0){
-      goStraight(1, 1.0);
-    }
+//     if(lineDetectArray[0] == 0){
+//       goStraight(1, 1.0);
+//     }
 
-    if(lineDetectArray[0]== 1){
-      turnR(setTurn);
-    }
-    if(lineDetectArray[0]== -1)
-      turnL(setTurn);
-    }
-  else if(lineDetectArray[1]== 0){ //stopping
-    goStraight(0, 0); 
-  }
-  else if(lineDetectArray[1]== -1){ //reversing
-    goStraight(-1, 0.5);
-  }
-}
+//     if(lineDetectArray[0]== 1){
+//       turnR(setTurn);
+//     }
+//     if(lineDetectArray[0]== -1)
+//       turnL(setTurn);
+//     }
+//   else if(lineDetectArray[1]== 0){ //stopping
+//     goStraight(0, 0); 
+//   }
+//   else if(lineDetectArray[1]== -1){ //reversing
+//     goStraight(-1, 0.5);
+//   }
+// }
 
 //pid that uses lineDetection() to create a distance
 double turnPID(double dir){
@@ -309,31 +338,31 @@ double turnPID(double dir){
   
 }
 
-void followLinePID(){
-  double totScaleFactor =1.0; // for scaling the output from turnPID(), For emergencies
-  lineDetection(); //initializing the line-detection
+// void followLinePID(){
+//   double totScaleFactor =1.0; // for scaling the output from turnPID(), For emergencies
+//   lineDetection(); //initializing the line-detection
 
-  double dirPID = turnPID(lineDetectArray[0])* totScaleFactor;
-  if(lineDetectArray[1]==1){
+//   double dirPID = turnPID(lineDetectArray[0])* totScaleFactor;
+//   if(lineDetectArray[1]==1){
 
-    if(dirPID == 0){
-      goStraight(1, 1.0);
-    }
+//     if(dirPID == 0){
+//       goStraight(1, 1.0);
+//     }
 
-    if(dirPID >0){
-      turnR(dirPID);
-    }
-    else{
-      turnL(abs(dirPID));
-    }
-  }
-  else if(lineDetectArray[1]== 0){
-    goStraight(0, 1);
-  }
-  else if(lineDetectArray[1]== -1){
-    goStraight(-1, 1);
-  }
-}
+//     if(dirPID >0){
+//       turnR(dirPID);
+//     }
+//     else{
+//       turnL(abs(dirPID));
+//     }
+//   }
+//   else if(lineDetectArray[1]== 0){
+//     goStraight(0, 1);
+//   }
+//   else if(lineDetectArray[1]== -1){
+//     goStraight(-1, 1);
+//   }
+// }
 
 
 //ikke ferdig
@@ -351,47 +380,101 @@ void outOfBoundsBuffer(){
 }
 
 
+// grabbing time!
+//____________________grabber states
+void Grab() 
+{
+  myservo.write(posClosed);
+}
+
+void Lower()
+{
+  myservo.write(posLower);
+}
+
+void Release() 
+{
+  myservo.write(posOpen);
+}
+
+
+void turn180()
+{
+  MotorB(1, 140);
+  MotorA(-1, 140);
+}
+
+//_______________grabber case-switch_________
+void grabber(){
+	switch (current_state)
+	{
+		case (INIT):
+			myservo.write(posOpen);
+			lastTime = millis();
+			current_state = Grab_state;
+		break;
+		
+		case (Grab_state):
+			Grab();
+			if (millis() - lastTime >= 500)
+			{
+				lastTime = millis();
+				current_state = Turn_state;
+				break;
+			}
+		break;
+
+		case (Turn_state):
+			turn180();
+			if(millis() - lastTime >= 1200)
+			{
+				stop();
+				lastTime = millis();
+				current_state = Lower_state;
+				break;
+			}
+		break;
+
+		case (Lower_state):
+      Lower();
+      if (millis() - lastTime >= 500)
+      {
+				lastTime = millis();
+        current_state = Release_state;
+        break;
+      }
+    break;
+
+    case (Release_state):
+      Release();
+			goStraight(-1, 140);
+			while (millis() - lastTime >= 500) 
+			{
+				stop();
+				while(true); // inst this kinda bad?
+			}
+			
+    break;
+  }
+}
+
+
 
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
 // main loop, for now just for testing
 void loop() {
-  time = millis();
-  speed =125;
-  //speed =110;
-  //speed = (int) (time/100) % 255;
-  // if (time<10000){
-  //   // turnInPlaceR();
-  //   turnR(1);
-  // }
-  // else{
-  //   // turnInPlaceL();
-  //   turnL(1);
-  // }
-  // }
-  // else{
-  //   turnL(1.0);
-  // }
-  simpleFollowLine();
-  //goStraight(1, 1.0);
-  //turnRight();
+  //time = millis();
+  switch(current_stage){
+    case(STARTUP):
+    lastTime= millis();
+    while(millis() - lastTime >= 300){ // the constant need to be changed based on camera angle
+        turnInPlaceL();
+    }
 
- // int scaledSpeed = (int) (speed*1.0);
- // int dir =1;
- // MotorA(dir, scaledSpeed);
- // MotorB(dir, scaledSpeed);
-  //MotorB(1, speed);
-  // if(time <5000){
-  // //  goStraight(-1, 1);
-  //   turnR(2);
-  // }
-  // if (time <= 10000 && time >=5000){
-  //   // goStraight(0, 1);
-  //    goStraight(1, 1); 
-  // }
-  // if (time > 10000){
-  // turnL(2); 
-  // }
-// lineDetection();
+				lastTime = millis();
+        break;
+      
+  }
 }
