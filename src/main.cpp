@@ -7,7 +7,7 @@ STAGE current_stage{FIRST};
 enum FirstStage{Straight, TSection, Cup};
 FirstStage current_part_firstStage{Straight};
 
-enum ThirdStage{T1, OBSTACLES, T2};
+enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
 // line detection pins
 const int IR_L = 8;
@@ -23,11 +23,11 @@ const int DirA = 4;
 int turningSpeed = 140;
 
 // camera
-const int Camera = 2;
+const int Camera = 3;
 
 int cupSide = 0;
 // cup sensor
-const int CupDist = 3;
+const int CupDist = 2;
 
 //GRABBER
 #define ServoM 9
@@ -125,12 +125,12 @@ void MotorB(int motor, int spd){
 }
 //---
 void turnRight(){
-  MotorA(1, speed*1.6);
+  MotorA(1, speed*1.4);
   MotorB(-1, speed*0.9);
 }
 
 void turnLeft(){
-  MotorB(1, speed*1.6);
+  MotorB(1, speed*1.4);
   MotorA(-1, speed*0.9);
 }
 
@@ -327,28 +327,28 @@ void simpleFollowLine(){
 //   }
 // }
 
-//pid that uses lineDetection() to create a distance
-double turnPID(double dir){
+// //pid that uses lineDetection() to create a distance
+// double turnPID(double dir){
 
-  currentTime = millis();
-  elapsedTime = (double) (currentTime- previousTime);
+//   currentTime = millis();
+//   elapsedTime = (double) (currentTime- previousTime);
 
-  error = setPoint - dir;       // computiong the error, is eiter +1 or -1  when not following the line, not accounted for t-sections and running off track
-  cumError +=  error * elapsedTime; //integrating
-  rateError = (error - lastError)/elapsedTime; //derivative
+//   error = setPoint - dir;       // computiong the error, is eiter +1 or -1  when not following the line, not accounted for t-sections and running off track
+//   cumError +=  error * elapsedTime; //integrating
+//   rateError = (error - lastError)/elapsedTime; //derivative
 
-  double out = kp*error + ki*cumError + kd*rateError; //summing and scaling the factors of the PID. 
-  // rate error is only usefull for instant correction
-  // error is constant
-  // cumError gives how aggressive the car shoud be at correcting over time.
+//   double out = kp*error + ki*cumError + kd*rateError; //summing and scaling the factors of the PID. 
+//   // rate error is only usefull for instant correction
+//   // error is constant
+//   // cumError gives how aggressive the car shoud be at correcting over time.
 
-  //assigning previous/last values for the next round
-  previousTime = currentTime;
-  lastError = error;
+//   //assigning previous/last values for the next round
+//   previousTime = currentTime;
+//   lastError = error;
 
-  return out; // not shure about the size of the values
+//   return out; // not shure about the size of the values
   
-}
+// }
 
 // void followLinePID(){
 //   double totScaleFactor =1.0; // for scaling the output from turnPID(), For emergencies
@@ -378,18 +378,18 @@ double turnPID(double dir){
 
 
 //ikke ferdig
-void outOfBoundsBuffer(){
-  int maxTime =300; //milliseconds
-  time = millis();
-  deltaT += time-prevTime;
-  if( deltaT < maxTime){
-    if(lineDetectArray[0]==0)
+// void outOfBoundsBuffer(){
+//   int maxTime =300; //milliseconds
+//   time = millis();
+//   deltaT += time-prevTime;
+//   if( deltaT < maxTime){
+//     if(lineDetectArray[0]==0)
 
    
-    prevTime=  time;
-  }
+//     prevTime=  time;
+//   }
   
-}
+// }
 
 
 // grabbing time!
@@ -427,6 +427,7 @@ void grabber(){
 		break;
 
     case (Go_To_Cup):
+      speed = 75;
       simpleFollowLine();
       if(digitalRead(CupDist) == HIGH){
         stop();
@@ -448,11 +449,11 @@ void grabber(){
 
 		case (Turn_state):
 			turn180();
-			if(millis() - lastTime >= 1200)
+			if(millis() - lastTime >= 1200) //asumption of 180 turn
 			{
 				stop();
 				lastTime = millis();
-				current_state = Lower_state;
+				current_state = Drive_state;
 				break;
 			}
 		break;
@@ -460,6 +461,7 @@ void grabber(){
     case(Drive_state):
       simpleFollowLine();
       if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+        stop();
         current_state = Lower_state;
         lastTime = millis();
         break;
@@ -493,7 +495,7 @@ void grabber(){
       else if(cupSide == 1){
         turnInPlaceR();
       }
-      if(time - lastTime >= 600){
+      if(time - lastTime >= 600){ // 180 defree tur time
         current_stage = SECOND;
       }
       break;
@@ -503,44 +505,46 @@ void grabber(){
 
 // ----------- startup
 void startup(){
-
-  lastTime= millis();
   while(cupSide == 0){
-
-    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+    lastTime = millis();
+    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
         turnInPlaceL();
     }
+      stop();
     lastTime = millis();
-    while(millis()- lastTime <=4000)
+    while(millis()- lastTime <=5000){
       if (digitalRead(Camera) == HIGH){
         cupSide = -1;
         break;
-
       }
+    }
 		lastTime = millis();
-    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
       turnInPlaceR();
     }
+    stop();
     if(cupSide != 0){
       break;
     }
 
 
 		lastTime = millis();
-    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
       turnInPlaceR();
     }
+    stop();
     lastTime = millis();
-    while(millis()- lastTime <=4000)
+    while(millis()- lastTime <=5000){
       if (digitalRead(Camera) == HIGH){
         cupSide = 1;
         break;
-
       }
+    }
 		lastTime = millis();
-    while(millis() - lastTime <= 300){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
       turnInPlaceL();
     }
+    stop();
   }
 }
 
@@ -551,6 +555,7 @@ void Stage1(){
     case (Straight):
       simpleFollowLine();
       if (lineDetectArray[2]== 1){
+        stop();
         current_part_firstStage = TSection;
         lastTime = millis();
         break;
@@ -593,16 +598,29 @@ switch(current_thirdStage){
     }
     break;
   case (OBSTACLES):
+    speed = 150;
     simpleFollowLine();
   break;
-
-}
+  
+  case (T2):
+    turnInPlaceL();
+    if(millis()- lastTime >= 500){
+      current_thirdStage = to_Fourth;
+      break;
+    }
+    break;
+  case (to_Fourth):
+    simpleFollowLine();
+    break;
+  
+  }
 }
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
 // main loop, for now just for testing
 void loop(){
+  //startup();
   //time = millis();
   switch(current_stage){
     case (STARTUP):
@@ -624,7 +642,7 @@ void loop(){
       break;
 
     case (THIRD):
-
+      stage3();
       break;
 
     case (FOURTH):
