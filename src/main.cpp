@@ -1,11 +1,16 @@
 #include <Arduino.h>
 #include <Servo.h>
 //for the different modes in the different stages
-enum STAGE{STARTUP, FIRST, SECOND, THIRD, FOURTH};
-STAGE current_stage{FIRST};
+int speed = 130; // ----------------------------------------------
 
-enum FirstStage{Straight, TSection, Cup};
-FirstStage current_part_firstStage{Straight};
+enum STAGE{INIT, FIRST, SECOND, THIRD, FOURTH};
+STAGE current_stage{INIT};
+
+// enum FirstStage{Straight, TSection, Cup};
+// FirstStage current_part_firstStage{Straight};
+
+enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state, Lower_state, Release_state, Go_Next_state}; // Enumerator for system states
+FirstStage current_firstStage{Straight};
 
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
@@ -22,12 +27,19 @@ const int DirA = 4;
 // turning in place speed
 int turningSpeed = 140;
 
+// time constant top turn 90 degrees
+const int turn90Time = 500;
+
+//time constant to turn 180 degrees
+const int turn180Time = 1000;
+
 // camera
 const int Camera = 3;
 
-int cupSide = 0;
-// cup sensor
+// cup sensor-pin
 const int CupDist = 2;
+// cup-side variable
+int cupSide = 0;
 
 //GRABBER
 #define ServoM 9
@@ -37,26 +49,23 @@ const int posOpen = 0;
 const int posLower = 120;
 
 unsigned long lastTime;
-enum STATE {INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state, Lower_state, Release_state, Go_Next_state}; // Enumerator for system states
-STATE current_state{INIT};
 
 //PID declarations:
 //constants
-double kp = 2;  // constant turning
-double ki = 2;  // increases the turning over time (be carefull with this one!)
-double kd = 5;  // how agressive the turning should start
+// double kp = 2;  // constant turning
+// double ki = 2;  // increases the turning over time (be carefull with this one!)
+// double kd = 5;  // how agressive the turning should start
 //variables
-unsigned long currentTime, previousTime, time;
-double elapsedTime;
-double error;
-double lastError;
-double pidIn, pidOut, setPoint;
-double cumError, rateError;
+// unsigned long currentTime, previousTime, time;
+// double elapsedTime;
+// double error;
+// double lastError;
+// double pidIn, pidOut, setPoint;
+// double cumError, rateError;
 
 //motor controll declaration
-const int maxSpeed = 150;
+//const int maxSpeed = 150; //UNUSED
 //const double truningScaleFactor = 1; //between 0 and 1 ()
-int speed = 100; // ----------------------------------------------
 //motorADir = motorADir*255;
 
 //array containing the return-values of lineDetect();
@@ -79,7 +88,7 @@ void setup() {
   pinMode(DirB, OUTPUT);
   pinMode(CupDist, INPUT);
   pinMode(Camera, INPUT);
-  setPoint =0;
+  //setPoint =0;
 
   pinMode(ServoM, OUTPUT);
   myservo.attach(9);
@@ -125,13 +134,13 @@ void MotorB(int motor, int spd){
 }
 //---
 void turnRight(){
-  MotorA(1, speed*1.4);
-  MotorB(-1, speed*0.9);
+  MotorA(1, (int) speed*1.4);
+  MotorB(-1, (int) speed*0.9);
 }
 
 void turnLeft(){
-  MotorB(1, speed*1.4);
-  MotorA(-1, speed*0.9);
+  MotorB(1, (int) speed*1.4);
+  MotorA(-1, (int) speed*0.9);
 }
 
 void turnInPlaceR(){
@@ -159,7 +168,13 @@ void stop(){
 }
 //---
 
-
+//assumes T-section, call lastTime = millis(); before using this TODO
+void complete90TurnR(){
+  lastTime = millis();
+  while(lastTime - millis() >= 200){
+    break;
+  }
+}
 
 // kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
 // //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
@@ -204,17 +219,17 @@ void stop(){
 
 
 //stores the last non-zero value of detected turning direction // not yet in use?
-void lastDirBuff(){
-  if(lineDetectArray[0]!=0){
-    dirBuffer = lineDetectArray[0];
-  }
-}
+// void lastDirBuff(){
+//   if(lineDetectArray[0]!=0){
+//     dirBuffer = lineDetectArray[0];
+//   }
+// }
 
 // returns the turning direction (0 == straight, 1== right, -1 == left), if it shoud keep going (0 == stop, 1 == go, -1 == back up) and if there is a T-section
 void lineDetection(){
       // when the digitalRead is LOW, no signal is returning to the sensor. aka the sensor is detecting the black line.
       // the middle sensor is opposite, (LOW/HIGH)
-  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)== LOW and digitalRead(IR_R)==HIGH){
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)== HIGH and digitalRead(IR_R)==HIGH){
       // code for driving straight
     lineDetectArray[0]= 0; //turning direction (let/right)
     lineDetectArray[1]= 1; //speed-direcion (forward/back)
@@ -251,7 +266,7 @@ void lineDetection(){
     lineDetectArray[2]= 0;
   }
   //
-  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==HIGH) 
+  if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==HIGH) 
   {
     //back it up
     lineDetectArray[0]= 0;
@@ -260,10 +275,9 @@ void lineDetection(){
   }
   if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW) 
   {
-    // Detecting a T section, need a T_counter //maybe its the drive straight?
-    // T_count +=
+    // Detecting a T section, currently just continuing
     lineDetectArray[0]= 0;
-    lineDetectArray[1]= 0;
+    lineDetectArray[1]= 1;
     lineDetectArray[2]= 1;
   }
   //lastDirBuff();
@@ -273,28 +287,29 @@ void lineDetection(){
 
 void simpleFollowLine(){
   lineDetection();
-   if(lineDetectArray[2]==0){
-      if(lineDetectArray[1]==1){
+   //if(lineDetectArray[2]==0){
+    if(lineDetectArray[1]==1){
 
-        if(lineDetectArray[0] == 0){
-          goStraight(1, 1.0);
-        }
-
-        if(lineDetectArray[0]== 1){
-          turnRight();
-        }
-        if(lineDetectArray[0]== -1){
-          turnLeft();
-        }
+      if(lineDetectArray[0] == 0){
+        goStraight(1, 1.0);
       }
-    
-      else if(lineDetectArray[1]== 0){ //stopping
-        stop(); 
+      if(lineDetectArray[0]== 1){
+        turnRight();
       }
-      else if(lineDetectArray[1]== -1){ //reversing
-        goStraight(-1, 1);
+      if(lineDetectArray[0]== -1){
+        turnLeft();
+      }
     }
-   }
+  
+    else if(lineDetectArray[1]== 0){ //stopping
+      stop(); 
+    }
+    
+    if(lineDetectArray[1]== -1){ //reversing
+      goStraight(-1, 1);
+    }
+    
+   //}
   //else if(lineDetectArray[2]==1){   //this is implemented in the main code now
   //  stop();
   //}
@@ -417,109 +432,111 @@ void turn180()
 }
 
 //_______________grabber case-switch_________
-void grabber(){
-	switch (current_state)
-	{
-		case (INIT):
-			myservo.write(posOpen);
-			lastTime = millis();
-			current_state = Go_To_Cup;
-		break;
+// void grabber(){
+// 	switch (current_state)
+// 	{
+// 		case (INIT):
+// 			myservo.write(posOpen);
+// 			lastTime = millis();
+// 			current_state = Go_To_Cup;
+// 		break;
 
-    case (Go_To_Cup):
-      speed = 75;
-      simpleFollowLine();
-      if(digitalRead(CupDist) == HIGH){
-        stop();
-        current_state = Grab_state;
-        lastTime = millis();
-        break;
-      }
-      break;
+//     case (Go_To_Cup):
+//       speed = 75;
+//       simpleFollowLine();
+//       if(digitalRead(CupDist) == HIGH){
+//         stop();
+//         current_state = Grab_state;
+//         lastTime = millis();
+//         break;
+//       }
+//       break;
 		
-		case (Grab_state):
-			Grab();
-			if (millis() - lastTime >= 500)
-			{
-				lastTime = millis();
-				current_state = Turn_state;
-				break;
-			}
-		break;
+// 		case (Grab_state):
+// 			Grab();
+// 			if (millis() - lastTime >= 500)
+// 			{
+// 				lastTime = millis();
+// 				current_state = Turn_state;
+// 				break;
+// 			}
+// 		break;
 
-		case (Turn_state):
-			turn180();
-			if(millis() - lastTime >= 1200) //asumption of 180 turn
-			{
-				stop();
-				lastTime = millis();
-				current_state = Drive_state;
-				break;
-			}
-		break;
+// 		case (Turn_state):
+// 			turn180();
+// 			if(millis() - lastTime >= 1200) //asumption of 180 turn
+// 			{
+// 				stop();
+// 				lastTime = millis();
+// 				current_state = Drive_state;
+// 				break;
+// 			}
+// 		break;
 
-    case(Drive_state):
-      simpleFollowLine();
-      if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
-        stop();
-        current_state = Lower_state;
-        lastTime = millis();
-        break;
-      }
-      break;
+//     case(Drive_state):
+//       simpleFollowLine();
+//       if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+//         stop();
+//         current_state = Lower_state;
+//         lastTime = millis();
+//         break;
+//       }
+//       break;
 
-		case (Lower_state):
-      Lower();
-      if (millis() - lastTime >= 500)
-      {
-				lastTime = millis();
-        current_state = Release_state;
-        break;
-      }
-    break;
+// 		case (Lower_state):
+//       Lower();
+//       if (millis() - lastTime >= 500)
+//       {
+// 				lastTime = millis();
+//         current_state = Release_state;
+//         break;
+//       }
+//     break;
 
-    case (Release_state):
-      Release();
-			goStraight(-1, 140);
-      lineDetection();
-			if (lineDetectArray[2] ==1){
-        current_state = Go_Next_state;
-        lastTime= millis();
-        break;
-			}
-      break;
-    case (Go_Next_state):
-      if(cupSide == -1){
-        turnInPlaceL();
-      }
-      else if(cupSide == 1){
-        turnInPlaceR();
-      }
-      if(time - lastTime >= 600){ // 180 defree tur time
-        current_stage = SECOND;
-      }
-      break;
-  }
-}
+//     case (Release_state):
+//       Release();
+// 			goStraight(-1, 140);
+//       lineDetection();
+// 			if (lineDetectArray[2] ==1){
+//         current_state = Go_Next_state;
+//         lastTime= millis();
+//         break;
+// 			}
+//       break;
+//     case (Go_Next_state):
+//       if(cupSide == -1){
+//         turnInPlaceL();
+//       }
+//       else if(cupSide == 1){
+//         turnInPlaceR();
+//       }
+//       if(time - lastTime >= 600){ // 180 defree tur time
+//         current_stage = SECOND;
+//       }
+//       break;
+//   }
+// }
 
 
-// ----------- startup
+// ------------------------------------------- startup -------------------------------------------------
+unsigned int cameraTurningTime = 300;
+unsigned int cameraDetectionTime = 5000;
 void startup(){
   while(cupSide == 0){
     lastTime = millis();
-    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
         turnInPlaceL();
     }
       stop();
     lastTime = millis();
-    while(millis()- lastTime <=5000){
-      if (digitalRead(Camera) == HIGH){
+    while(millis()- lastTime <= cameraDetectionTime){ // 500 is the assumed time it takes for the rb-pi to detect the cup, with some slack
+      if (digitalRead(Camera) != LOW){
         cupSide = -1;
         break;
       }
     }
 		lastTime = millis();
-    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
       turnInPlaceR();
     }
     stop();
@@ -529,19 +546,19 @@ void startup(){
 
 
 		lastTime = millis();
-    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
       turnInPlaceR();
     }
     stop();
     lastTime = millis();
-    while(millis()- lastTime <=5000){
-      if (digitalRead(Camera) == HIGH){
+    while(millis()- lastTime <= cameraDetectionTime){
+      if (digitalRead(Camera) != LOW){
         cupSide = 1;
         break;
       }
     }
 		lastTime = millis();
-    while(millis() - lastTime <= 200){ // the constant need to be changed based on camera angle
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
       turnInPlaceL();
     }
     stop();
@@ -551,12 +568,12 @@ void startup(){
 
 // ---- case switches for the stages
 void Stage1(){
-  switch(current_part_firstStage){
+  switch(current_firstStage){
     case (Straight):
       simpleFollowLine();
       if (lineDetectArray[2]== 1){
         stop();
-        current_part_firstStage = TSection;
+        current_firstStage = TSection;
         lastTime = millis();
         break;
       }
@@ -568,18 +585,92 @@ void Stage1(){
       else if(cupSide ==1){
         turnInPlaceR();
       }
-			if(millis() - lastTime >= 500){ //turns to the correct side to fetch the cup
-				current_part_firstStage = Cup;
+			if(millis() - lastTime >= turn90Time){ //turns to the correct side to fetch the cup
+        stop();
+				current_firstStage = Grabber_INIT;
 				lastTime = millis();
         break;
         }
       break;
 
-    case(Cup):
-      grabber();
+		case (Grabber_INIT):
+			myservo.write(posOpen);
+			lastTime = millis();
+			current_firstStage = Go_To_Cup;
+		  break;
+
+    case (Go_To_Cup):
+      speed = 75;
+      simpleFollowLine();
+      if(digitalRead(CupDist) == HIGH){ //need to mount it
+        stop();
+        current_firstStage = Grab_state;
+        lastTime = millis();
+        break;
+      }
       break;
-  }
-  }
+		
+		case (Grab_state):
+			Grab();
+			if (millis() - lastTime >= 500){
+				lastTime = millis();
+				current_firstStage = Turn_state;
+				break;
+			}
+		  break;
+
+		case (Turn_state):
+			turn180();
+			if(millis() - lastTime >= turn180Time){ //asumption of 180 turn
+				stop();
+				lastTime = millis();
+				current_firstStage = Drive_state;
+				break;
+			}
+		  break;
+
+    case(Drive_state):
+      simpleFollowLine();
+      if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+        stop();
+        current_firstStage = Lower_state;
+        lastTime = millis();
+        break;
+      }
+      break;
+
+		case (Lower_state):
+      Lower();
+      if (millis() - lastTime >= 500){
+				lastTime = millis();
+        current_firstStage = Release_state;
+        break;
+      }
+      break;
+
+    case (Release_state):
+      Release();
+			goStraight(-1, 140);
+      lineDetection();
+			if (lineDetectArray[2] ==1){
+        current_firstStage = Go_Next_state;
+        lastTime= millis();
+        break;
+			}
+      break;
+    case (Go_Next_state):
+      if(cupSide == -1){
+        turnInPlaceL();
+      }
+      else if(cupSide == 1){
+        turnInPlaceR();
+      }
+      if(millis() - lastTime >= turn90Time){ // 90 defree tur time
+        current_stage = SECOND;
+      }
+      break;
+    }
+}
 
 
 
@@ -592,7 +683,7 @@ void stage3(){
 switch(current_thirdStage){
   case (T1):
     turnInPlaceL();
-    if(millis()- lastTime >= 500){
+    if(millis()- lastTime >= turn90Time){
       current_thirdStage = OBSTACLES;
       break;
     }
@@ -604,7 +695,7 @@ switch(current_thirdStage){
   
   case (T2):
     turnInPlaceL();
-    if(millis()- lastTime >= 500){
+    if(millis()- lastTime >= turn90Time){
       current_thirdStage = to_Fourth;
       break;
     }
@@ -622,13 +713,19 @@ switch(current_thirdStage){
 void loop(){
   //startup();
   //time = millis();
+  //simpleFollowLine();
+  //goStraight(1,1);
+
+
   switch(current_stage){
-    case (STARTUP):
-      startup(); //this code should only be called once !!!!!
+    case (INIT): // only runs this one time
+      delay(2000);
+      startup();
       current_stage = FIRST;
       break;
 
     case (FIRST):
+
       Stage1();
       break;
     
