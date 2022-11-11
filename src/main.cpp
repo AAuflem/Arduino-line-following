@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 //for the different modes in the different stages
-int speed = 130; // ----------------------------------------------
+int speed = 150; // ----------------------------------------------
 
 enum STAGE{INIT, FIRST, SECOND, THIRD, FOURTH};
 STAGE current_stage{INIT};
@@ -716,34 +716,36 @@ void loop(){
   //simpleFollowLine();
   //goStraight(1,1);
 
+simpleFollowLine();
 
-  switch(current_stage){
-    case (INIT): // only runs this one time
-      delay(2000);
-      startup();
-      current_stage = FIRST;
-      break;
 
-    case (FIRST):
+  // switch(current_stage){
+  //   case (INIT): // only runs this one time
+  //     delay(2000);
+  //     startup();
+  //     current_stage = FIRST;
+  //     break;
 
-      Stage1();
-      break;
+  //   case (FIRST):
+
+  //     Stage1();
+  //     break;
     
-    case(SECOND):
-      Stage2();
-      if(lineDetectArray[2] ==1){
-        current_stage = THIRD;
-        lastTime = millis();
-        break;
-      }
-      break;
+  //   case(SECOND):
+  //     Stage2();
+  //     if(lineDetectArray[2] ==1){
+  //       current_stage = THIRD;
+  //       lastTime = millis();
+  //       break;
+  //     }
+  //     break;
 
-    case (THIRD):
-      stage3();
-      break;
+  //   case (THIRD):
+  //     stage3();
+  //     break;
 
-    case (FOURTH):
+  //   case (FOURTH):
 
-      break;
-  }
+  //     break;
+  // }
 }
