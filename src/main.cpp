@@ -1,16 +1,19 @@
 #include <Arduino.h>
 #include <Servo.h>
 //for the different modes in the different stages
-int speed = 150; // ----------------------------------------------
+int speed = 100; // ----------------------------------------------
 
 enum STAGE{INIT, FIRST, SECOND, THIRD, FOURTH};
 STAGE current_stage{INIT};
+
 
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
 enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state, Lower_state, Release_state, Go_Next_state}; // Enumerator for system states
 FirstStage current_firstStage{Straight};
+
+
 
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
@@ -25,7 +28,7 @@ const int DirB = 7;
 const int DirA = 4;
 
 // turning in place speed
-int turningSpeed = 140;
+int turningSpeed = 150;
 
 // time constant top turn 90 degrees
 const int turn90Time = 500;
@@ -42,7 +45,7 @@ const int CupDist = 2;
 int cupSide = 0;
 
 //GRABBER
-#define ServoM 9
+const int ServoM = 9;
 Servo myservo;
 const int posClosed = 150;
 const int posOpen = 0;
@@ -52,24 +55,24 @@ unsigned long lastTime;
 
 //PID declarations:
 //constants
-// double kp = 2;  // constant turning
-// double ki = 2;  // increases the turning over time (be carefull with this one!)
-// double kd = 5;  // how agressive the turning should start
+double kp = 10;  // constant turning
+double ki = -2;  // increases the turning over time (be carefull with this one!)
+double kd = 20;  // how agressive the turning should start
 //variables
-// unsigned long currentTime, previousTime, time;
-// double elapsedTime;
-// double error;
-// double lastError;
-// double pidIn, pidOut, setPoint;
-// double cumError, rateError;
+unsigned long currentTime, previousTime, time;
+double elapsedTime;
+double error;
+double lastError;
+double pidIn, pidOut, setPoint;
+double cumError, rateError;
 
 //motor controll declaration
-//const int maxSpeed = 150; //UNUSED
-//const double truningScaleFactor = 1; //between 0 and 1 ()
+const int maxSpeed = 220; //UNUSED
+const double truningScaleFactor = 1; //between 0 and 1 ()
 //motorADir = motorADir*255;
 
-//array containing the return-values of lineDetect();
-int lineDetectArray[3] = {0, 0, 0};
+//array containing the return-values of lineDetect(); first valu is turning direction, second is driving direction, third is T-section detection, //-1 is left/backwards, while 0 means straight/stop/not detected
+int lineDetectArray[3] = {0, 0, 0}; 
 
 //buffers
 int dirBuffer;
@@ -134,13 +137,13 @@ void MotorB(int motor, int spd){
 }
 //---
 void turnRight(){
-  MotorA(1, (int) speed*1.4);
-  MotorB(-1, (int) speed*0.9);
+  MotorA(1, (int) speed*1.5);
+  MotorB(-1, (int) speed*1.1);
 }
 
 void turnLeft(){
-  MotorB(1, (int) speed*1.4);
-  MotorA(-1, (int) speed*0.9);
+  MotorB(1, (int) speed*1.5);
+  MotorA(-1, (int) speed*1.1);
 }
 
 void turnInPlaceR(){
@@ -187,11 +190,11 @@ void complete90TurnR(){
 //   speed = (int) speed*scaleFactor; //allowed to become an int
 //   if(diff<=0){
 //     MotorA(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorB(1, speed);
+//     MotorB(1, -speed);
 //   }
 //   else if(diff>0){
 //     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = 1 -diff;         //reduces speed of second wheel
+//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
 //     MotorA(1, speed * upscalingFactor);
 //     MotorB(1, speed * downscalingFactor);
 //   }
@@ -207,11 +210,11 @@ void complete90TurnR(){
 //   speed = (int) speed*scaleFactor;
 //   if(diff<=0){
 //     MotorB(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorA(1, speed);
+//     MotorA(1, -speed);
 //   }
 //   else if(diff>0){
 //     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = 1 -diff;         //reduces speed of second wheel
+//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
 //     MotorB(1, speed * upscalingFactor);
 //     MotorA(1, speed * downscalingFactor);
 //   }
@@ -301,9 +304,9 @@ void simpleFollowLine(){
       }
     }
   
-    else if(lineDetectArray[1]== 0){ //stopping
-      stop(); 
-    }
+    // else if(lineDetectArray[1]== 0){ //stopping
+    //   stop(); 
+    // }
     
     if(lineDetectArray[1]== -1){ //reversing
       goStraight(-1, 1);
@@ -519,8 +522,8 @@ void turn180()
 
 
 // ------------------------------------------- startup -------------------------------------------------
-unsigned int cameraTurningTime = 300;
-unsigned int cameraDetectionTime = 5000;
+unsigned int cameraTurningTime = 400;
+unsigned int cameraDetectionTime = 7000;
 void startup(){
   while(cupSide == 0){
     lastTime = millis();
@@ -649,7 +652,7 @@ void Stage1(){
       break;
 
     case (Release_state):
-      Release();
+      Release();    // probobly edit this
 			goStraight(-1, 140);
       lineDetection();
 			if (lineDetectArray[2] ==1){
@@ -665,7 +668,8 @@ void Stage1(){
       else if(cupSide == 1){
         turnInPlaceR();
       }
-      if(millis() - lastTime >= turn90Time){ // 90 defree tur time
+      if(millis() - lastTime >= turn90Time){ // 90 degree tur time
+        Grab();
         current_stage = SECOND;
       }
       break;
@@ -689,8 +693,13 @@ switch(current_thirdStage){
     }
     break;
   case (OBSTACLES):
-    speed = 150;
+    speed = 150; // testing this value
+    // add different turning??
     simpleFollowLine();
+    if(lineDetectArray[2] ==1){
+      current_thirdStage = T2;
+      break;
+    }
   break;
   
   case (T2):
@@ -715,13 +724,16 @@ void loop(){
   //time = millis();
   //simpleFollowLine();
   //goStraight(1,1);
+  // lineDetection();
+  simpleFollowLine();
 
-simpleFollowLine();
+  //followLinePID();
 
 
   // switch(current_stage){
   //   case (INIT): // only runs this one time
   //     delay(2000);
+  //     speed = 80;
   //     startup();
   //     current_stage = FIRST;
   //     break;
@@ -734,6 +746,7 @@ simpleFollowLine();
   //   case(SECOND):
   //     Stage2();
   //     if(lineDetectArray[2] ==1){
+  //       stop();
   //       current_stage = THIRD;
   //       lastTime = millis();
   //       break;
