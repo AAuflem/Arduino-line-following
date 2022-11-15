@@ -7,6 +7,8 @@ enum STAGE{INIT, FIRST, SECOND, THIRD, FOURTH};
 STAGE current_stage{INIT};
 
 
+
+
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
@@ -31,10 +33,10 @@ const int DirA = 4;
 int turningSpeed = 150;
 
 // time constant top turn 90 degrees
-const int turn90Time = 500;
+const int turn90Time = 600;
 
 //time constant to turn 180 degrees
-const int turn180Time = 1000;
+const int turn180Time = 1200;
 
 // camera
 const int Camera = 3;
@@ -42,7 +44,7 @@ const int Camera = 3;
 // cup sensor-pin
 const int CupDist = 2;
 // cup-side variable
-int cupSide = 0;
+int cupSide = 0; 
 
 //GRABBER
 const int ServoM = 9;
@@ -97,7 +99,6 @@ void setup() {
   myservo.attach(9);
   myservo.write(posClosed);
   //pinMode(DirB, OUTPUT);
-  
 }
 
 //motor A direction and speed, first wheel, motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -276,7 +277,7 @@ void lineDetection(){
     lineDetectArray[1]= -1;
     lineDetectArray[2]= 0;
   }
-  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW) 
+  if(digitalRead(IR_L)==LOW and digitalRead(IR_C)==HIGH and digitalRead(IR_R)==LOW) 
   {
     // Detecting a T section, currently just continuing
     lineDetectArray[0]= 0;
@@ -573,6 +574,10 @@ void startup(){
 void Stage1(){
   switch(current_firstStage){
     case (Straight):
+      if(millis() - lastTime <= 50){
+        speed =150;
+      }
+      speed = 80;
       simpleFollowLine();
       if (lineDetectArray[2]== 1){
         stop();
@@ -582,18 +587,21 @@ void Stage1(){
       }
       break;
     case(TSection):
+
       if(cupSide == -1){
-        turnInPlaceL(); //same as turn180 but with directional controll
+			  while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
+          turnInPlaceL(); //same as turn180 but with directional controll
+        }
       }
       else if(cupSide ==1){
-        turnInPlaceR();
-      }
-			if(millis() - lastTime >= turn90Time){ //turns to the correct side to fetch the cup
-        stop();
-				current_firstStage = Grabber_INIT;
-				lastTime = millis();
-        break;
+        while(millis() - lastTime <= turn90Time){
+          turnInPlaceR();
         }
+      } 
+      // potential problem if there for some reason is another value than 1 or -1 .......
+      stop();
+			current_firstStage = Grabber_INIT;
+			lastTime = millis();
       break;
 
 		case (Grabber_INIT):
@@ -603,6 +611,9 @@ void Stage1(){
 		  break;
 
     case (Go_To_Cup):
+      if(millis() - lastTime <= 30){
+        speed =150;
+      }
       speed = 75;
       simpleFollowLine();
       if(digitalRead(CupDist) == HIGH){ //need to mount it
@@ -623,14 +634,13 @@ void Stage1(){
 		  break;
 
 		case (Turn_state):
-			turn180();
-			if(millis() - lastTime >= turn180Time){ //asumption of 180 turn
-				stop();
-				lastTime = millis();
-				current_firstStage = Drive_state;
-				break;
-			}
-		  break;
+			while(millis() - lastTime <= turn180Time){ //asumption of 180 turn
+			  turnInPlaceL(); //left side-truning seems to be the most consistent
+        }
+			stop();
+			lastTime = millis();
+			current_firstStage = Drive_state;
+			break;
 
     case(Drive_state):
       simpleFollowLine();
@@ -663,15 +673,17 @@ void Stage1(){
       break;
     case (Go_Next_state):
       if(cupSide == -1){
-        turnInPlaceL();
+        while(millis() - lastTime <= turn90Time){
+          turnInPlaceL();
+        }
       }
       else if(cupSide == 1){
-        turnInPlaceR();
+        while(millis() - lastTime <= turn90Time){
+          turnInPlaceR();
+        }
       }
-      if(millis() - lastTime >= turn90Time){ // 90 degree tur time
-        Grab();
-        current_stage = SECOND;
-      }
+      Grab();
+      current_stage = SECOND;
       break;
     }
 }
@@ -679,7 +691,7 @@ void Stage1(){
 
 
 void Stage2(){
-  speed= 180; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+  speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
   simpleFollowLine();
 }
 
@@ -693,7 +705,7 @@ switch(current_thirdStage){
     }
     break;
   case (OBSTACLES):
-    speed = 150; // testing this value
+    speed = 170; // testing this value
     // add different turning??
     simpleFollowLine();
     if(lineDetectArray[2] ==1){
@@ -725,40 +737,40 @@ void loop(){
   //simpleFollowLine();
   //goStraight(1,1);
   // lineDetection();
-  simpleFollowLine();
+  //simpleFollowLine();
 
   //followLinePID();
 
+  switch(current_stage){
+    case (INIT): // only runs this one time
+      delay(2000);
+      speed = 80;
+      startup();
+      lastTime = millis(); //timestamp
+      current_stage = FIRST;
+      break;
 
-  // switch(current_stage){
-  //   case (INIT): // only runs this one time
-  //     delay(2000);
-  //     speed = 80;
-  //     startup();
-  //     current_stage = FIRST;
-  //     break;
+    case (FIRST):
 
-  //   case (FIRST):
-
-  //     Stage1();
-  //     break;
+      Stage1();
+      break;
     
-  //   case(SECOND):
-  //     Stage2();
-  //     if(lineDetectArray[2] ==1){
-  //       stop();
-  //       current_stage = THIRD;
-  //       lastTime = millis();
-  //       break;
-  //     }
-  //     break;
+    case(SECOND):
+      Stage2();
+      if(lineDetectArray[2] ==1){
+        stop();
+        current_stage = THIRD;
+        lastTime = millis();
+        break;
+      }
+      break;
 
-  //   case (THIRD):
-  //     stage3();
-  //     break;
+    case (THIRD):
+      stage3();
+      break;
 
-  //   case (FOURTH):
+    case (FOURTH):
 
-  //     break;
-  // }
+      break;
+  }
 }
