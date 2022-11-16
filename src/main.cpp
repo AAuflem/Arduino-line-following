@@ -12,7 +12,7 @@ STAGE current_stage{INIT};
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
-enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state}; // Enumerator for system states
+enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state,Dormant}; // Enumerator for system states
 FirstStage current_firstStage{Straight};
 
 
@@ -769,11 +769,16 @@ void Stage1(){
       else{ // no new time-stamp this time, might be nice to have tho
         simpleFollowLine();
         if(millis() - lastTime >= 3000){
+          current_firstStage = Dormant;
           current_stage = SECOND;
           lastTime = millis();
+          break;
         }
       }
+      break;
     }
+
+    
 }
 
 
