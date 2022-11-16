@@ -616,8 +616,7 @@ void Stage1(){
 
 
 		case (Grabber_INIT):
-      Release(); // probobly have this tho
-			//myservo.write(posOpen);
+      Release(); // probably have this tho
       if(millis() - lastTime >= 500){
 			  lastTime = millis();
 			  current_firstStage = Go_To_Cup;
@@ -691,11 +690,12 @@ void Stage1(){
     case (Release_state):
       Release();    // probobly edit this
       if( millis()- lastTime >= 1000){
-        speed = 100;
+        speed = 110;
 			  goStraight(-1, 1);
         lineDetection();
       }
-			if (lineDetectArray[2] ==1){
+			if (lineDetectArray[2] ==1){ // if T_section detected)
+        stop();
         current_firstStage = TSection2;
         lastTime= millis();
         break;
