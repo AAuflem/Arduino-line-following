@@ -428,13 +428,6 @@ void Release()
   myservo.write(posOpen);
 }
 
-
-void turn180()
-{
-  MotorB(1, 140);
-  MotorA(-1, 140);
-}
-
 //_______________grabber case-switch_________
 // void grabber(){
 // 	switch (current_state)
