@@ -19,6 +19,9 @@ FirstStage current_firstStage{Straight};
 
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
+
+enum FourthStage{Begin, Search, Fetch, GoBack, FindSpot, PutDown, Neutral, End};
+FourthStage current_fourthStage{Begin};
 // line detection pins
 const int IR_L = 8;
 const int IR_C = 12;
@@ -30,13 +33,16 @@ const int DirB = 7;
 const int DirA = 4;
 
 // turning in place speed
+const int turningSpeed90 =160;
 int turningSpeed = 160;
+const int turningSpeed180 = 180;
+
 
 // time constant top turn 90 degrees
 const int turn90Time = 800;
 
 //time constant to turn 180 degrees
-const int turn180Time = 1950;
+const int turn180Time = 2100;
 
 // camera
 const int Camera = 3;
@@ -53,7 +59,7 @@ const int posClosed = 150;
 const int posOpen = 0;
 const int posLower = 120;
 
-unsigned long lastTime;
+unsigned long lastTime, stepTurnTimestamp;
 
 //PID declarations:
 //constants
@@ -93,6 +99,7 @@ void setup() {
   pinMode(DirB, OUTPUT);
   pinMode(CupDist, INPUT);
   pinMode(Camera, INPUT);
+  pinMode(A1, INPUT); // this might not be needed?
   //setPoint =0;
 
   pinMode(ServoM, OUTPUT);
@@ -514,15 +521,26 @@ void Release()
 //   }
 // }
 
+//returns true if there is a T-section
+bool ifT(){
+  if(lineDetectArray[2]==1){
+    return true;
+  }
+  else{ 
+    return false;
+  }
+}
+
+
 void turn90L(){
   while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
     turnInPlaceL(); //same as turn180 but with directional controll
   }
 }
 
-void turn90L(){
+void turn90R(){
 	while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
-    turnInPlaceL(); //same as turn180 but with directional controll
+    turnInPlaceR(); //same as turn180 but with directional controll
   }
 }
 
@@ -531,6 +549,31 @@ void startupSpeed(unsigned int Time){
   speed =170;
   }
 }
+
+void stepTurnL(){
+  speed = 200;
+  stepTurnTimestamp = millis();
+  while(millis() - stepTurnTimestamp <= 50){ // edit the time-constants
+    turnInPlaceL();
+  }
+  stepTurnTimestamp = millis();
+  while(millis() - stepTurnTimestamp <= 30){ // edit the time-constants
+    stop();
+  }
+}
+
+void stepTurnR(){
+ speed = 200;
+  stepTurnTimestamp = millis();
+  while(millis() - stepTurnTimestamp <= 50){ // edit the time-constants
+    turnInPlaceL();
+  }
+  stepTurnTimestamp = millis();
+  while(millis() - stepTurnTimestamp <= 30){ // edit the time-constants
+    stop();
+  }
+}
+
 // ------------------------------------------- startup -------------------------------------------------
 unsigned int cameraTurningTime = 400;
 unsigned int cameraDetectionTime = 7000;
@@ -649,9 +692,12 @@ void Stage1(){
 		  break;
 
 		case (Turn_state):
+      turningSpeed = turningSpeed180;
 			while(millis() - lastTime <= turn180Time){ //asumption of 180 turn
 			  turnInPlaceR(); //left side-truning seems to be the most consistent
         }
+        turningSpeed = turningSpeed90;
+
 			stop();
 			lastTime = millis();
 			current_firstStage = Drive_state1;
@@ -689,12 +735,12 @@ void Stage1(){
 
     case (Release_state):
       Release();    // probobly edit this
-      if( millis()- lastTime >= 1000){
-        speed = 110;
+      if( millis()- lastTime >= 300){
+        speed = 90;
 			  goStraight(-1, 1);
         lineDetection();
       }
-			if (lineDetectArray[2] ==1){ // if T_section detected)
+			if(ifT()){ // if T_section detected)
         stop();
         current_firstStage = TSection2;
         lastTime= millis();
@@ -702,25 +748,32 @@ void Stage1(){
 			}
       break;
     case (TSection2):
-      if(cupSide == -1){
+      if(ifT()){ 
         while(millis() - lastTime <= turn90Time){
           turnInPlaceL();
         }
+        stop();
       }
       if(cupSide == 1){
         while(millis() - lastTime <= turn90Time){
           turnInPlaceR();
         }
+        stop();
       }
       Grab();
       current_firstStage = Go_Next_state;
       lastTime = millis();
       break;
     case (Go_Next_state):
-      simpleFollowLine();
-      if(millis() - lastTime >= 2000){
-        current_stage = SECOND;
-        lastTime = millis();
+      if(millis()- lastTime <=400){
+      goStraight(1,1.0);
+      }
+      else{ // no new time-stamp this time, might be nice to have tho
+        simpleFollowLine();
+        if(millis() - lastTime >= 3000){
+          current_stage = SECOND;
+          lastTime = millis();
+        }
       }
     }
 }
@@ -762,6 +815,43 @@ switch(current_thirdStage){
     simpleFollowLine();
     break;
   
+  }
+}
+
+int counter = 0;
+void stageFour(){
+  switch (current_fourthStage){
+    case (Begin):
+      simpleFollowLine();
+      if(ifT()){
+        stop();
+
+        current_fourthStage = Search;
+        break;
+      }
+      break;
+
+    case(Search):
+      if(millis()- lastTime <= 3000){
+        if(analogRead(A1) == HIGH){
+          current_fourthStage = Fetch;
+          lastTime = millis();
+          break;
+        }
+        break;
+      }
+      else{
+        stepTurnL();
+        counter += 1;
+        lastTime = millis();
+        if(counter >= 10){
+          turn90R();
+        }
+      }
+
+
+      stepTurnL();
+      break;
   }
 }
 
