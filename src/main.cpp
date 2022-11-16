@@ -704,9 +704,9 @@ void Stage1(){
 			current_firstStage = Drive_state1;
 			break;
     
-    case (Drive_state1):
+    case (Drive_state1): // make this a searchin algorithm??
       simpleFollowLine();
-      if(millis() - lastTime >= 2000){
+      if(millis() - lastTime >= 3000){
         current_firstStage = Drive_state2;
         lastTime = millis();
       break;
@@ -714,8 +714,9 @@ void Stage1(){
     break;
 
     case(Drive_state2):
-      goStraight(1, 1.0); // change this back if it dosent work
-      lineDetection();
+      //goStraight(1, 1.0); // change this back if it dosent work
+      simpleFollowLine();
+      //lineDetection();
       //simpleFollowLine();
       if(lineDetectArray[1] == -1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
         stop();
@@ -736,9 +737,9 @@ void Stage1(){
 
     case (Release_state):
       Release();    // probobly edit this
-      if( millis()- lastTime >= 200){
-        speed = 90;
-			  goStraight(-1, 0.9); // whatch this closely now
+      if( millis()- lastTime >= 300){
+        speed = 100;
+			  goStraight(-1, 1.0); // whatch this closely now
         lineDetection();
 			  if(ifT()){ // if T_section detected)
           stop();
@@ -749,7 +750,7 @@ void Stage1(){
 			}
       break;
     case (TSection2):
-      if(ifT()){ 
+      if(cupSide == -1){ 
         turn90L();
         stop();
       }
@@ -757,7 +758,7 @@ void Stage1(){
         turn90R();
         stop();
       }
-      Grab();
+      Grab(); // closing the grabber to get it out of the way
       current_firstStage = Go_Next_state;
       lastTime = millis();
       break;
