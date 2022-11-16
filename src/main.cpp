@@ -12,7 +12,7 @@ STAGE current_stage{INIT};
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
-enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state, Lower_state, Release_state, Go_Next_state}; // Enumerator for system states
+enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state}; // Enumerator for system states
 FirstStage current_firstStage{Straight};
 
 
@@ -30,13 +30,13 @@ const int DirB = 7;
 const int DirA = 4;
 
 // turning in place speed
-int turningSpeed = 150;
+int turningSpeed = 160;
 
 // time constant top turn 90 degrees
-const int turn90Time = 600;
+const int turn90Time = 800;
 
 //time constant to turn 180 degrees
-const int turn180Time = 1200;
+const int turn180Time = 1950;
 
 // camera
 const int Camera = 3;
@@ -57,19 +57,19 @@ unsigned long lastTime;
 
 //PID declarations:
 //constants
-double kp = 10;  // constant turning
-double ki = -2;  // increases the turning over time (be carefull with this one!)
-double kd = 20;  // how agressive the turning should start
-//variables
-unsigned long currentTime, previousTime, time;
-double elapsedTime;
-double error;
-double lastError;
-double pidIn, pidOut, setPoint;
-double cumError, rateError;
+// double kp = 10;  // constant turning
+// double ki = -2;  // increases the turning over time (be carefull with this one!)
+// double kd = 20;  // how agressive the turning should start
+// //variables
+// unsigned long currentTime, previousTime, time;
+// double elapsedTime;
+// double error;
+// double lastError;
+// double pidIn, pidOut, setPoint;
+// double cumError, rateError;
 
 //motor controll declaration
-const int maxSpeed = 220; //UNUSED
+// const int maxSpeed = 220; //UNUSED
 const double truningScaleFactor = 1; //between 0 and 1 ()
 //motorADir = motorADir*255;
 
@@ -97,7 +97,7 @@ void setup() {
 
   pinMode(ServoM, OUTPUT);
   myservo.attach(9);
-  myservo.write(posClosed);
+  myservo.write(posOpen);
   //pinMode(DirB, OUTPUT);
 }
 
@@ -149,14 +149,14 @@ void turnLeft(){
 
 void turnInPlaceR(){
   //double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorA(1, turningSpeed);
-  MotorB(-1, turningSpeed);
+  MotorA(1, (int) turningSpeed * 1.1);
+  MotorB(-1, (int) turningSpeed * 1.1);
 }
 
 void turnInPlaceL(){
   //double scalingFactor = 1; //  can be changed to change the speed (0-1)
-  MotorB(1, turningSpeed);
-  MotorA(-1, turningSpeed);
+  MotorB(1, (int) turningSpeed * 1.1);
+  MotorA(-1, (int) turningSpeed * 1.1);
 }
 
 //dir = 1 forward, dir = -1 backwards, dir = 0 stop
@@ -265,7 +265,7 @@ void lineDetection(){
   if(digitalRead(IR_L)==HIGH and digitalRead(IR_C)==LOW and digitalRead(IR_R)==LOW)
   {
     // code when ended up to the left
-    lineDetectArray[0]= 1; 
+    lineDetectArray[0]= 1;
     lineDetectArray[1]= 1;
     lineDetectArray[2]= 0;
   }
@@ -521,7 +521,23 @@ void turn180()
 //   }
 // }
 
+void turn90L(){
+  while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
+    turnInPlaceL(); //same as turn180 but with directional controll
+  }
+}
 
+void turn90L(){
+	while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
+    turnInPlaceL(); //same as turn180 but with directional controll
+  }
+}
+
+void startupSpeed(unsigned int Time){
+  if (millis()- Time <=60){
+  speed =170;
+  }
+}
 // ------------------------------------------- startup -------------------------------------------------
 unsigned int cameraTurningTime = 400;
 unsigned int cameraDetectionTime = 7000;
@@ -577,7 +593,7 @@ void Stage1(){
       if(millis() - lastTime <= 50){
         speed =150;
       }
-      speed = 80;
+      speed = 100;
       simpleFollowLine();
       if (lineDetectArray[2]== 1){
         stop();
@@ -586,6 +602,7 @@ void Stage1(){
         break;
       }
       break;
+
     case(TSection):
 
       if(cupSide == -1){
@@ -593,7 +610,7 @@ void Stage1(){
           turnInPlaceL(); //same as turn180 but with directional controll
         }
       }
-      else if(cupSide ==1){
+      else if(cupSide == 1){
         while(millis() - lastTime <= turn90Time){
           turnInPlaceR();
         }
@@ -604,19 +621,25 @@ void Stage1(){
 			lastTime = millis();
       break;
 
+
 		case (Grabber_INIT):
-			myservo.write(posOpen);
-			lastTime = millis();
-			current_firstStage = Go_To_Cup;
+      Release(); // probobly have this tho
+			//myservo.write(posOpen);
+      if(millis() - lastTime >= 500){
+			  lastTime = millis();
+			  current_firstStage = Go_To_Cup;
+        break;
+      }
 		  break;
 
+
     case (Go_To_Cup):
-      if(millis() - lastTime <= 30){
-        speed =150;
+      if(millis() - lastTime <= 60){
+        speed =160;
       }
-      speed = 75;
+      speed = 100;
       simpleFollowLine();
-      if(digitalRead(CupDist) == HIGH){ //need to mount it
+      if(digitalRead(CupDist) == LOW){ //LOW = close
         stop();
         current_firstStage = Grab_state;
         lastTime = millis();
@@ -626,7 +649,7 @@ void Stage1(){
 		
 		case (Grab_state):
 			Grab();
-			if (millis() - lastTime >= 500){
+			if (millis() - lastTime >= 1500){
 				lastTime = millis();
 				current_firstStage = Turn_state;
 				break;
@@ -635,16 +658,27 @@ void Stage1(){
 
 		case (Turn_state):
 			while(millis() - lastTime <= turn180Time){ //asumption of 180 turn
-			  turnInPlaceL(); //left side-truning seems to be the most consistent
+			  turnInPlaceR(); //left side-truning seems to be the most consistent
         }
 			stop();
 			lastTime = millis();
-			current_firstStage = Drive_state;
+			current_firstStage = Drive_state1;
 			break;
-
-    case(Drive_state):
+    
+    case (Drive_state1):
       simpleFollowLine();
-      if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+      if(millis() - lastTime >= 2000){
+        current_firstStage = Drive_state2;
+        lastTime = millis();
+      break;
+      }
+    break;
+
+    case(Drive_state2):
+      goStraight(1, 1.0); // change this back if it dosent work
+      lineDetection();
+      //simpleFollowLine();
+      if(lineDetectArray[1] == -1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
         stop();
         current_firstStage = Lower_state;
         lastTime = millis();
@@ -654,7 +688,7 @@ void Stage1(){
 
 		case (Lower_state):
       Lower();
-      if (millis() - lastTime >= 500){
+      if (millis() - lastTime >= 800){
 				lastTime = millis();
         current_firstStage = Release_state;
         break;
@@ -663,28 +697,38 @@ void Stage1(){
 
     case (Release_state):
       Release();    // probobly edit this
-			goStraight(-1, 140);
-      lineDetection();
+      if( millis()- lastTime >= 1000){
+        speed = 100;
+			  goStraight(-1, 1);
+        lineDetection();
+      }
 			if (lineDetectArray[2] ==1){
-        current_firstStage = Go_Next_state;
+        current_firstStage = TSection2;
         lastTime= millis();
         break;
 			}
       break;
-    case (Go_Next_state):
+    case (TSection2):
       if(cupSide == -1){
         while(millis() - lastTime <= turn90Time){
           turnInPlaceL();
         }
       }
-      else if(cupSide == 1){
+      if(cupSide == 1){
         while(millis() - lastTime <= turn90Time){
           turnInPlaceR();
         }
       }
       Grab();
-      current_stage = SECOND;
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
       break;
+    case (Go_Next_state):
+      simpleFollowLine();
+      if(millis() - lastTime >= 2000){
+        current_stage = SECOND;
+        lastTime = millis();
+      }
     }
 }
 
