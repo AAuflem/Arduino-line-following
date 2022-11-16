@@ -545,9 +545,10 @@ void turn90R(){
 }
 
 void startupSpeed(unsigned int Time){
-  if (millis()- Time <=60){
-  speed =170;
+  if(millis() - Time <= 60){
+    speed =150;
   }
+  else{speed = 100;}
 }
 
 void stepTurnL(){
@@ -670,9 +671,9 @@ void Stage1(){
 
     case (Go_To_Cup):
       if(millis() - lastTime <= 60){
-        speed =160;
+        speed =150;
       }
-      else{speed = 110;}
+      else{speed = 100;}
       simpleFollowLine();
       if(digitalRead(CupDist) == LOW){ //LOW = close
         stop();
@@ -749,15 +750,11 @@ void Stage1(){
       break;
     case (TSection2):
       if(ifT()){ 
-        while(millis() - lastTime <= turn90Time){
-          turnInPlaceL();
-        }
+        turn90L();
         stop();
       }
       if(cupSide == 1){
-        while(millis() - lastTime <= turn90Time){
-          turnInPlaceR();
-        }
+        turn90R();
         stop();
       }
       Grab();
