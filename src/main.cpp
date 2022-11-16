@@ -672,7 +672,7 @@ void Stage1(){
       if(millis() - lastTime <= 60){
         speed =160;
       }
-      speed = 100;
+      else{speed = 110;}
       simpleFollowLine();
       if(digitalRead(CupDist) == LOW){ //LOW = close
         stop();
@@ -735,16 +735,16 @@ void Stage1(){
 
     case (Release_state):
       Release();    // probobly edit this
-      if( millis()- lastTime >= 300){
+      if( millis()- lastTime >= 200){
         speed = 90;
-			  goStraight(-1, 1);
+			  goStraight(-1, 0.9); // whatch this closely now
         lineDetection();
-      }
-			if(ifT()){ // if T_section detected)
-        stop();
-        current_firstStage = TSection2;
-        lastTime= millis();
-        break;
+			  if(ifT()){ // if T_section detected)
+          stop();
+          current_firstStage = TSection2;
+          lastTime= millis();
+          break;
+        }
 			}
       break;
     case (TSection2):
