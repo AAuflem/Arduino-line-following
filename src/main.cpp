@@ -624,6 +624,7 @@ void startup(){
 
 
 // ---- case switches for the stages
+int stage1Fin=0;
 void Stage1(){
   switch(current_firstStage){
     case (Straight):
@@ -771,14 +772,14 @@ void Stage1(){
         if(millis() - lastTime >= 3000){
           current_firstStage = Dormant;
           current_stage = SECOND;
+          stage1Fin = 1;
           lastTime = millis();
           break;
         }
       }
       break;
-    }
 
-    
+    }
 }
 
 
@@ -883,6 +884,8 @@ void loop(){
     case (FIRST):
 
       Stage1();
+      if(stage1Fin==1){ 
+        current_stage=SECOND;}
       break;
     
     case(SECOND):
