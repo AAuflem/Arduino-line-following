@@ -778,6 +778,8 @@ void Stage1(){
         }
       }
       break;
+    default: //this might break the code, or fix it
+      current_stage = SECOND;
 
     }
 }
