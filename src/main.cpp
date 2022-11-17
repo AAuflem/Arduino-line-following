@@ -12,7 +12,7 @@ STAGE current_stage{INIT};
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
-enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state,Dormant}; // Enumerator for system states
+enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state}; // Enumerator for system states
 FirstStage current_firstStage{Straight};
 
 
@@ -106,6 +106,7 @@ void setup() {
   myservo.attach(9);
   myservo.write(posOpen);
   //pinMode(DirB, OUTPUT);
+  delay(2000);
 }
 
 //motor A direction and speed, first wheel, motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -544,11 +545,11 @@ void turn90R(){
   }
 }
 
-void startupSpeed(unsigned int Time){
+void startingSpeed(unsigned int Time, int endSpeed){
   if(millis() - Time <= 60){
     speed =150;
   }
-  else{speed = 100;}
+  else{ speed = endSpeed; }
 }
 
 void stepTurnL(){
@@ -624,7 +625,8 @@ void startup(){
 
 
 // ---- case switches for the stages
-int stage1Fin=0;
+int stage1Fin=0; // this didnt seem to work
+
 void Stage1(){
   switch(current_firstStage){
     case (Straight):
@@ -739,9 +741,10 @@ void Stage1(){
     case (Release_state):
       Release();    // probobly edit this
       if( millis()- lastTime >= 300){
-        speed = 100;
+        startingSpeed((lastTime -300), 80);
 			  goStraight(-1, 1.0); // whatch this closely now
         lineDetection();
+
 			  if(ifT()){ // if T_section detected)
           stop();
           current_firstStage = TSection2;
@@ -763,6 +766,7 @@ void Stage1(){
       current_firstStage = Go_Next_state;
       lastTime = millis();
       break;
+
     case (Go_Next_state):
       if(millis()- lastTime <=400){
       goStraight(1,1.0);
@@ -770,16 +774,17 @@ void Stage1(){
       else{ // no new time-stamp this time, might be nice to have tho
         simpleFollowLine();
         if(millis() - lastTime >= 3000){
-          current_firstStage = Dormant;
           current_stage = SECOND;
-          stage1Fin = 1;
+          stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
           lastTime = millis();
           break;
         }
       }
       break;
-    default: //this might break the code, or fix it
+
+    default: //this might break the code, or fix it, Might be only used at the beginning if nothing else is defined...
       current_stage = SECOND;
+      break;
 
     }
 }
@@ -794,11 +799,12 @@ void Stage2(){
 void stage3(){
 switch(current_thirdStage){
   case (T1):
-    turnInPlaceL();
-    if(millis()- lastTime >= turn90Time){
-      current_thirdStage = OBSTACLES;
-      break;
-    }
+    turn90L();
+    //turnInPlaceL();
+    //if(millis()- lastTime >= turn90Time){
+    current_thirdStage = OBSTACLES;
+      //break;
+    //}
     break;
   case (OBSTACLES):
     speed = 170; // testing this value
@@ -865,19 +871,10 @@ void stageFour(){
 
 // main loop, for now just for testing
 void loop(){
-  //startup();
-  //time = millis();
-  //simpleFollowLine();
-  //goStraight(1,1);
-  // lineDetection();
-  //simpleFollowLine();
-
-  //followLinePID();
-
   switch(current_stage){
     case (INIT): // only runs this one time
-      delay(2000);
-      speed = 80;
+      //delay(2000); // This is now in the Setup-part
+      speed = 100; // shouldnt matter
       startup();
       lastTime = millis(); //timestamp
       current_stage = FIRST;
@@ -887,12 +884,13 @@ void loop(){
 
       Stage1();
       if(stage1Fin==1){ 
-        current_stage=SECOND;}
+        current_stage=SECOND;
+      }
       break;
     
     case(SECOND):
       Stage2();
-      if(lineDetectArray[2] ==1){
+      if(ifT()){
         stop();
         current_stage = THIRD;
         lastTime = millis();
