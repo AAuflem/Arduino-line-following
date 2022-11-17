@@ -12,7 +12,7 @@ STAGE current_stage{INIT};
 // enum FirstStage{Straight, TSection, Cup};
 // FirstStage current_part_firstStage{Straight};
 
-enum FirstStage {Straight, TSection, Grabber_INIT, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, TSection2 ,Go_Next_state}; // Enumerator for system states
+enum FirstStage {Straight, TSection, Grabber_prepare, Go_To_Cup , Grab_state, Turn_state, Drive_state1, Drive_state2, Lower_state, Release_state, getOut, TSection2 ,Go_Next_state}; // Enumerator for system states
 FirstStage current_firstStage{Straight};
 
 
@@ -45,10 +45,10 @@ const int turn90Time = 800;
 const int turn180Time = 2100;
 
 // camera
-const int Camera = 2;
+const int Camera = 3;
 
 // cup sensor-pin
-const int CupDist = 3;
+const int CupDist = 2;
 // cup-side variable
 int cupSide = 0; 
 
@@ -56,8 +56,8 @@ int cupSide = 0;
 const int ServoM = 9;
 Servo myservo;
 const int posClosed = 150;
-const int posOpen = 0;
-const int posLower = 120;
+const int posOpen = 10;
+const int posLower = 105;
 
 unsigned long lastTime, stepTurnTimestamp;
 
@@ -145,14 +145,15 @@ void MotorB(int motor, int spd){
 }
 }
 //---
+double turnRate = 1;
 void turnRight(){
   MotorA(1, (int) speed*1.5);
-  MotorB(-1, (int) speed*1.1);
+  MotorB(-1, (int) speed*1.1* turnRate);
 }
 
 void turnLeft(){
   MotorB(1, (int) speed*1.5);
-  MotorA(-1, (int) speed*1.1);
+  MotorA(-1, (int) speed*1.1* turnRate);
 }
 
 void turnInPlaceR(){
@@ -537,17 +538,19 @@ void turn90L(){
   while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
     turnInPlaceL(); //same as turn180 but with directional controll
   }
+  stop();
 }
 
 void turn90R(){
 	while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
     turnInPlaceR(); //same as turn180 but with directional controll
   }
+  stop();
 }
 
 void startingSpeed(unsigned int Time, int endSpeed){
-  if(millis() - Time <= 60){
-    speed =150;
+  if(millis() - Time <= 100){
+    speed =140;
   }
   else{ speed = endSpeed; }
 }
@@ -577,7 +580,7 @@ void stepTurnR(){
 }
 
 // ------------------------------------------- startup -------------------------------------------------
-unsigned int cameraTurningTime = 400;
+unsigned int cameraTurningTime = 400; // 400 when semil-low voltage, 
 unsigned int cameraDetectionTime = 7000;
 void startup(){
   while(cupSide == 0){
@@ -657,13 +660,13 @@ void Stage1(){
       } 
       // potential problem if there for some reason is another value than 1 or -1 .......
       stop();
-			current_firstStage = Grabber_INIT;
+			current_firstStage = Grabber_prepare;
 			lastTime = millis();
       break;
 
 
-		case (Grabber_INIT):
-      Release(); // probably have this tho
+		case (Grabber_prepare):
+      Release(); // probably have this
       if(millis() - lastTime >= 500){
 			  lastTime = millis();
 			  current_firstStage = Go_To_Cup;
@@ -673,10 +676,7 @@ void Stage1(){
 
 
     case (Go_To_Cup):
-      if(millis() - lastTime <= 60){
-        speed =150;
-      }
-      else{speed = 100;}
+      startingSpeed(lastTime, 100);
       simpleFollowLine();
       if(digitalRead(CupDist) == LOW){ //LOW = close
         stop();
@@ -693,19 +693,19 @@ void Stage1(){
 				current_firstStage = Turn_state;
 				break;
 			}
-		  break;
+		break;
 
 		case (Turn_state):
       turningSpeed = turningSpeed180;
 			while(millis() - lastTime <= turn180Time){ //asumption of 180 turn
 			  turnInPlaceR(); //left side-truning seems to be the most consistent
         }
-        turningSpeed = turningSpeed90;
+      turningSpeed = turningSpeed90;
 
 			stop();
 			lastTime = millis();
 			current_firstStage = Drive_state1;
-			break;
+		break;
     
     case (Drive_state1): // make this a searchin algorithm??
       simpleFollowLine();
@@ -721,26 +721,46 @@ void Stage1(){
       simpleFollowLine();
       //lineDetection();
       //simpleFollowLine();
-      if(lineDetectArray[1] == -1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+      if(lineDetectArray[1] == -1){ // checks if its out of bounds (end of tape). mulig vi må definere noe mer for T-sections og for å plassere helt riktig
         stop();
         current_firstStage = Lower_state;
         lastTime = millis();
         break;
       }
-      break;
+    break;
 
 		case (Lower_state):
-      Lower();
+      while(millis() - lastTime <= 500)
+      {
+        Lower();
+      }
+      while (millis() - lastTime <= 1000)
+      {
+        Release();
+        current_firstStage = getOut;
+        lastTime = millis();
+        break;
+      }
+    break;
+      /*Lower();
       if (millis() - lastTime >= 800){
 				lastTime = millis();
         current_firstStage = Release_state;
         break;
       }
+      
       break;
 
     case (Release_state):
       Release();    // probobly edit this
       if( millis()- lastTime >= 300){
+        current_firstStage = getOut;
+        lastTime = millis();
+      }
+      break;
+    */
+
+    case (getOut):
         startingSpeed((lastTime -300), 80);
 			  goStraight(-1, 1.0); // whatch this closely now
         lineDetection();
@@ -751,16 +771,19 @@ void Stage1(){
           lastTime= millis();
           break;
         }
-			}
+			
       break;
+
     case (TSection2):
       if(cupSide == -1){ 
         turn90L();
-        stop();
+        //stop();
+        //break;
       }
       if(cupSide == 1){
         turn90R();
-        stop();
+        //stop();
+        //break;
       }
       Grab(); // closing the grabber to get it out of the way
       current_firstStage = Go_Next_state;
@@ -803,13 +826,18 @@ switch(current_thirdStage){
     //turnInPlaceL();
     //if(millis()- lastTime >= turn90Time){
     current_thirdStage = OBSTACLES;
+    lastTime = millis();
       //break;
     //}
     break;
   case (OBSTACLES):
     speed = 170; // testing this value
-    // add different turning??
+    // add different turning??--------------------------------
     simpleFollowLine();
+    if(millis()- lastTime >= 3500){ // increasing speed in the "end" of stage 3
+      speed = 200;
+      turnRate = 1.3; // this is to get past the second beam and turn afterwards, it might be bad for the sand-pit
+    }
     if(lineDetectArray[2] ==1){
       current_thirdStage = T2;
       break;
@@ -874,7 +902,7 @@ void loop(){
   switch(current_stage){
     case (INIT): // only runs this one time
       //delay(2000); // This is now in the Setup-part
-      speed = 100; // shouldnt matter
+      speed = 80; // shouldnt matter
       startup();
       lastTime = millis(); //timestamp
       current_stage = FIRST;
