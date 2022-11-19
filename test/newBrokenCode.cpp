@@ -45,10 +45,10 @@ const int turn90Time = 800;
 const int turn180Time = 2100;
 
 // camera
-const int Camera = 3;
+const int Camera = 2;
 
 // cup sensor-pin
-const int CupDist = 2;
+const int CupDist = 3;
 // cup-side variable
 int cupSide = 0; 
 

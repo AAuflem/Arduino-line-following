@@ -25,6 +25,13 @@ const int turn180Time = 1000;
 
 unsigned long lastTime;
 
+const int ServoM = 9;
+Servo myservo;
+const int posClosed = 150;
+const int posOpen = 10;
+const int posLower = 105;
+
+
 //array containing the return-values of lineDetect();
 int lineDetectArray[3] = {0, 0, 0};
 
@@ -43,6 +50,13 @@ void setup() {
   pinMode(DirA, OUTPUT);
   pinMode(SPDB, OUTPUT);
   pinMode(DirB, OUTPUT);  
+
+ pinMode(ServoM, OUTPUT);
+  myservo.attach(9);
+  myservo.write(posClosed);
+  //pinMode(DirB, OUTPUT);
+  delay(2000);
+  
 }
 
 //motor A direction and speed, first wheel, motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -212,20 +226,26 @@ void simpleFollowLine(){
 }
 
 void loop(){
-while(millis()<= 2000){
-    goStraight(1, 1);
-}
-while(millis() <=4000){
-    turnRight();
-}
-while(millis() <= 6000){
-    turnLeft();
-}
-while(millis() <= 8000){
-    goStraight(-1, 1);
-}
-stop();
+  
+// while(millis()<= 2000){
+    // goStraight(1, 1);
+// }
+// while(millis() <=4000){
+    // turnRight();
+// }
+// while(millis() <= 6000){
+    // turnLeft();
+// }
+// while(millis() <= 8000){
+    // goStraight(-1, 1);
+// }
+// stop();
 
 //goStraight(1,1);
+
+  myservo.write(posClosed);
+  if (millis() >= 6000){
+  myservo.write(posOpen);
+  }
 
 }
