@@ -22,6 +22,7 @@ ThirdStage current_thirdStage{T1};
 
 enum FourthStage{Begin, Search, Fetch, GoBack, FindSpot, PutDown, Neutral, End};
 FourthStage current_fourthStage{Begin};
+// ---------------------- pins for 
 // line detection pins
 const int IR_L = 8;
 const int IR_C = 12;
@@ -31,6 +32,14 @@ const int SPDA = 5;
 const int SPDB = 6;
 const int DirB = 7;
 const int DirA = 4;
+// cup sensor-pin
+const int CupDist = 3;
+// camera
+const int Camera = 2;
+const int Camera_center = 10;
+
+//GRABBER
+const int ServoM = 9;
 
 // turning in place speed
 const int turningSpeed90 =160;
@@ -44,35 +53,17 @@ const int turn90Time = 800;
 //time constant to turn 180 degrees
 const int turn180Time = 2100;
 
-// camera
-const int Camera = 2;
 
-// cup sensor-pin
-const int CupDist = 3;
 // cup-side variable
 int cupSide = 0; 
 
-//GRABBER
-const int ServoM = 9;
+// grabber
 Servo myservo;
 const int posClosed = 150;
 const int posOpen = 10;
 const int posLower = 105;
 
 unsigned long lastTime, stepTurnTimestamp;
-
-//PID declarations:
-//constants
-// double kp = 10;  // constant turning
-// double ki = -2;  // increases the turning over time (be carefull with this one!)
-// double kd = 20;  // how agressive the turning should start
-// //variables
-// unsigned long currentTime, previousTime, time;
-// double elapsedTime;
-// double error;
-// double lastError;
-// double pidIn, pidOut, setPoint;
-// double cumError, rateError;
 
 //motor controll declaration
 // const int maxSpeed = 220; //UNUSED
@@ -189,54 +180,7 @@ void complete90TurnR(){
   }
 }
 
-// kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
-// //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
-// void turnR(double percent){
-//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
 
-//   double upscalingFactor = (double)(maxSpeed/speed);
-//   double downscalingFactor =1.0;
-//   double diff = percent - upscalingFactor;
-//   speed = (int) speed*scaleFactor; //allowed to become an int
-//   if(diff<=0){
-//     MotorA(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorB(1, -speed);
-//   }
-//   else if(diff>0){
-//     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
-//     MotorA(1, speed * upscalingFactor);
-//     MotorB(1, speed * downscalingFactor);
-//   }
-// }
-
-
-// void turnL(double percent){
-//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
-
-//   double upscalingFactor = (double)(maxSpeed/speed);
-//   double downscalingFactor =1.0;
-//   double diff = percent - upscalingFactor;
-//   speed = (int) speed*scaleFactor;
-//   if(diff<=0){
-//     MotorB(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorA(1, -speed);
-//   }
-//   else if(diff>0){
-//     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
-//     MotorB(1, speed * upscalingFactor);
-//     MotorA(1, speed * downscalingFactor);
-//   }
-// }
-
-
-//stores the last non-zero value of detected turning direction // not yet in use?
-// void lastDirBuff(){
-//   if(lineDetectArray[0]!=0){
-//     dirBuffer = lineDetectArray[0];
-//   }
-// }
 
 // returns the turning direction (0 == straight, 1== right, -1 == left), if it shoud keep going (0 == stop, 1 == go, -1 == back up) and if there is a T-section
 void lineDetection(){
@@ -329,83 +273,18 @@ void simpleFollowLine(){
 
 }
 
+//.----------. not in use yet .----------.
 
-//------------ funksjonene nedenfor brukes ikke ---------------
-
-// void followLine(){
-//   double setTurn =3;
-//   lineDetection();
-//   if(lineDetectArray[1]==1){
-
-//     if(lineDetectArray[0] == 0){
-//       goStraight(1, 1.0);
-//     }
-
-//     if(lineDetectArray[0]== 1){
-//       turnR(setTurn);
-//     }
-//     if(lineDetectArray[0]== -1)
-//       turnL(setTurn);
-//     }
-//   else if(lineDetectArray[1]== 0){ //stopping
-//     goStraight(0, 0); 
-//   }
-//   else if(lineDetectArray[1]== -1){ //reversing
-//     goStraight(-1, 0.5);
-//   }
-// }
-
-// //pid that uses lineDetection() to create a distance
-// double turnPID(double dir){
-
-//   currentTime = millis();
-//   elapsedTime = (double) (currentTime- previousTime);
-
-//   error = setPoint - dir;       // computiong the error, is eiter +1 or -1  when not following the line, not accounted for t-sections and running off track
-//   cumError +=  error * elapsedTime; //integrating
-//   rateError = (error - lastError)/elapsedTime; //derivative
-
-//   double out = kp*error + ki*cumError + kd*rateError; //summing and scaling the factors of the PID. 
-//   // rate error is only usefull for instant correction
-//   // error is constant
-//   // cumError gives how aggressive the car shoud be at correcting over time.
-
-//   //assigning previous/last values for the next round
-//   previousTime = currentTime;
-//   lastError = error;
-
-//   return out; // not shure about the size of the values
-  
-// }
-
-// void followLinePID(){
-//   double totScaleFactor =1.0; // for scaling the output from turnPID(), For emergencies
-//   lineDetection(); //initializing the line-detection
-
-//   double dirPID = turnPID(lineDetectArray[0])* totScaleFactor;
-//   if(lineDetectArray[1]==1){
-
-//     if(dirPID == 0){
-//       goStraight(1, 1.0);
-//     }
-
-//     if(dirPID >0){
-//       turnR(dirPID);
-//     }
-//     else{
-//       turnL(abs(dirPID));
-//     }
-//   }
-//   else if(lineDetectArray[1]== 0){
-//     goStraight(0, 1);
-//   }
-//   else if(lineDetectArray[1]== -1){
-//     goStraight(-1, 1);
+//stores the last non-zero value of detected turning direction // not yet in use
+// void lastDirBuff(){
+//   if(lineDetectArray[0]!=0){
+//     dirBuffer = lineDetectArray[0];
 //   }
 // }
 
 
-//ikke ferdig
+//------ buuffer for a fortsette en sving selv om man er out of bounds, ikke ferdig
+
 // void outOfBoundsBuffer(){
 //   int maxTime =300; //milliseconds
 //   time = millis();
@@ -437,91 +316,6 @@ void Release()
   myservo.write(posOpen);
 }
 
-//_______________grabber case-switch_________
-// void grabber(){
-// 	switch (current_state)
-// 	{
-// 		case (INIT):
-// 			myservo.write(posOpen);
-// 			lastTime = millis();
-// 			current_state = Go_To_Cup;
-// 		break;
-
-//     case (Go_To_Cup):
-//       speed = 75;
-//       simpleFollowLine();
-//       if(digitalRead(CupDist) == HIGH){
-//         stop();
-//         current_state = Grab_state;
-//         lastTime = millis();
-//         break;
-//       }
-//       break;
-		
-// 		case (Grab_state):
-// 			Grab();
-// 			if (millis() - lastTime >= 500)
-// 			{
-// 				lastTime = millis();
-// 				current_state = Turn_state;
-// 				break;
-// 			}
-// 		break;
-
-// 		case (Turn_state):
-// 			turn180();
-// 			if(millis() - lastTime >= 1200) //asumption of 180 turn
-// 			{
-// 				stop();
-// 				lastTime = millis();
-// 				current_state = Drive_state;
-// 				break;
-// 			}
-// 		break;
-
-//     case(Drive_state):
-//       simpleFollowLine();
-//       if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
-//         stop();
-//         current_state = Lower_state;
-//         lastTime = millis();
-//         break;
-//       }
-//       break;
-
-// 		case (Lower_state):
-//       Lower();
-//       if (millis() - lastTime >= 500)
-//       {
-// 				lastTime = millis();
-//         current_state = Release_state;
-//         break;
-//       }
-//     break;
-
-//     case (Release_state):
-//       Release();
-// 			goStraight(-1, 140);
-//       lineDetection();
-// 			if (lineDetectArray[2] ==1){
-//         current_state = Go_Next_state;
-//         lastTime= millis();
-//         break;
-// 			}
-//       break;
-//     case (Go_Next_state):
-//       if(cupSide == -1){
-//         turnInPlaceL();
-//       }
-//       else if(cupSide == 1){
-//         turnInPlaceR();
-//       }
-//       if(time - lastTime >= 600){ // 180 defree tur time
-//         current_stage = SECOND;
-//       }
-//       break;
-//   }
-// }
 
 //returns true if there is a T-section
 bool ifT(){
@@ -533,6 +327,8 @@ bool ifT(){
   }
 }
 
+
+// -------------------- Turning functions -----------------------
 
 void turn90L(){
   while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
