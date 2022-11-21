@@ -865,7 +865,7 @@ void stageFour(){
 
 // main loop, for now just for testing
 void loop(){
-  lineDetection();
+  //lineDetection();
   //simpleFollowLine();
   //startup();
   //time = millis();
@@ -876,38 +876,38 @@ void loop(){
 
   //followLinePID();
 
-  // switch(current_stage){
-    // case (INIT): // only runs this one time
-      // delay(2000);
-      // speed = 80;
-      // startup();
-      // lastTime = millis(); //timestamp
-      // current_stage = FIRST;
-      // break;
+  switch(current_stage){
+    case (INIT): // only runs this one time
+      delay(2000);
+      speed = 80;
+      startup();
+      lastTime = millis(); //timestamp
+      current_stage = FIRST;
+      break;
 
-    // case (FIRST):
+    case (FIRST):
 
-      // Stage1();
-      // if(stage1Fin==1){ 
-        // current_stage=SECOND;}
-      // break;
+      Stage1();
+      if(stage1Fin==1){ 
+        current_stage=SECOND;}
+      break;
     
-    // case(SECOND):
-      // Stage2();
-      // if(lineDetectArray[2] ==1){
-        // stop();
-        // current_stage = THIRD;
-        // lastTime = millis();
-        // break;
-      // }
-      // break;
+    case(SECOND):
+      Stage2();
+      if(lineDetectArray[2] ==1){
+        stop();
+        current_stage = THIRD;
+        lastTime = millis();
+        break;
+      }
+      break;
 
-    // case (THIRD):
-      // stage3();
-      // break;
+    case (THIRD):
+      stage3();
+      break;
 
-    // case (FOURTH):
+    case (FOURTH):
 
-      // break;
-  // }
+      break;
+  }
 }

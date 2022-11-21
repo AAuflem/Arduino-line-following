@@ -41,17 +41,19 @@ const int Camera_center = 10;
 //GRABBER
 const int ServoM = 9;
 
+// ----------- OTHER CONSTANTS DECLARATIONS
+
 // turning in place speed
 const int turningSpeed90 =160;
 int turningSpeed = 160;
-const int turningSpeed180 = 180;
+const int turningSpeed180 = 160;
 
 
 // time constant top turn 90 degrees
 const int turn90Time = 800;
 
 //time constant to turn 180 degrees
-const int turn180Time = 2100;
+const int turn180Time = 1600;
 
 
 // cup-side variable
@@ -97,7 +99,7 @@ void setup() {
   myservo.attach(9);
   myservo.write(posOpen);
   //pinMode(DirB, OUTPUT);
-  delay(2000);
+  while(millis() < 2000){}
 }
 
 //motor A direction and speed, first wheel, motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -136,15 +138,17 @@ void MotorB(int motor, int spd){
 }
 }
 //---
-double turnRate = 1;
+// Normally set to 1.1 : this one amplifies the backwards component of the turning. actual turning is also ependent on the speed. 1.5 is the current amplification for the 
+double turnRate = 1.1;
+
 void turnRight(){
   MotorA(1, (int) speed*1.5);
-  MotorB(-1, (int) speed*1.1* turnRate);
+  MotorB(-1, (int) speed* turnRate);
 }
 
 void turnLeft(){
   MotorB(1, (int) speed*1.5);
-  MotorA(-1, (int) speed*1.1* turnRate);
+  MotorA(-1, (int) speed* turnRate);
 }
 
 void turnInPlaceR(){
@@ -376,7 +380,7 @@ void stepTurnR(){
 }
 
 // ------------------------------------------- startup -------------------------------------------------
-unsigned int cameraTurningTime = 400; // 400 when semil-low voltage, 
+unsigned int cameraTurningTime = 300; // 400 when semil-low voltage, 
 unsigned int cameraDetectionTime = 7000;
 void startup(){
   while(cupSide == 0){
@@ -423,10 +427,72 @@ void startup(){
 }
 
 
-// ---- case switches for the stages
-int stage1Fin=0; // this didnt seem to work
 
-void Stage1(){
+// void DialInCup(){
+//   if (digitalRead(Camera) == HIGH){ // everything within this one ? might not be needed/can lead to some mistakes?
+
+//   } 
+// }
+// ---- case switches for the stages:
+
+//int stage1Fin=0; // this didnt seem to work
+
+
+
+//this one dosent use the startup
+
+void altStage1(){
+//startup-part
+  while(cupSide == 0){
+    lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
+        turnInPlaceL();
+    }
+      stop();
+    lastTime = millis();
+    while(millis()- lastTime <= cameraDetectionTime){ // 500 is the assumed time it takes for the rb-pi to detect the cup, with some slack
+      if (digitalRead(Camera) != LOW){
+        cupSide = -1;
+        break;
+      }
+    }
+    if(cupSide != 0){
+      break;
+    }
+    //going to the dialing-in part after this
+    // else it wil go to the other side:
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    stop();
+    
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    stop();
+    lastTime = millis();
+    while(millis()- lastTime <= cameraDetectionTime){
+      if (digitalRead(Camera) != LOW){
+        cupSide = 1;
+        break;
+      }
+    }
+    // checks if there currently is a cup thats detected, if so, stay at this side.
+    if(cupSide != 0){
+      break;
+    }
+    // if not, go middle and repeat
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
+      turnInPlaceL();
+    }
+    stop();
+  }
+
+
+  //stage 1 part
   switch(current_firstStage){
     case (Straight):
       if(millis() - lastTime <= 50){
@@ -538,23 +604,24 @@ void Stage1(){
         break;
       }
     break;
-      /*Lower();
-      if (millis() - lastTime >= 800){
-				lastTime = millis();
-        current_firstStage = Release_state;
-        break;
-      }
-      
-      break;
 
-    case (Release_state):
-      Release();    // probobly edit this
-      if( millis()- lastTime >= 300){
-        current_firstStage = getOut;
-        lastTime = millis();
-      }
-      break;
-    */
+    //   Lower();
+    //   if (millis() - lastTime >= 800){
+		// 		lastTime = millis();
+    //     current_firstStage = Release_state;
+    //     break;
+    //   }
+      
+    //   break;
+
+    // case (Release_state):
+    //   Release();    // probobly edit this
+    //   if( millis()- lastTime >= 300){
+    //     current_firstStage = getOut;
+    //     lastTime = millis();
+    //   }
+    //   break;
+    // 
 
     case (getOut):
         startingSpeed((lastTime -300), 80);
@@ -594,7 +661,7 @@ void Stage1(){
         simpleFollowLine();
         if(millis() - lastTime >= 3000){
           current_stage = SECOND;
-          stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
+          //stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
           lastTime = millis();
           break;
         }
@@ -609,11 +676,174 @@ void Stage1(){
 }
 
 
+void Stage1(){
+  switch(current_firstStage){
+    case (Straight):
+    startingSpeed(millis(), 100);
+      simpleFollowLine();
+      if (ifT()){
+        stop();
+        current_firstStage = TSection;
+        lastTime = millis();
+        break;
+      }
+      break;
 
-void Stage2(){
-  speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
-  simpleFollowLine();
+    case(TSection):
+
+      if(cupSide == -1){
+        turn90L();
+      }
+      else if(cupSide == 1){
+        turn90R();
+      } 
+      // potential problem if there for some reason is another value than 1 or -1 .......
+      stop();
+			current_firstStage = Go_To_Cup;
+			lastTime = millis();
+      break;
+
+    case (Go_To_Cup):
+      startingSpeed(lastTime, 100);
+      simpleFollowLine();
+      if(digitalRead(CupDist) == LOW){ //LOW = close
+        stop();
+        current_firstStage = Grab_state;
+        lastTime = millis();
+        break;
+      }
+      break;
+		
+		case (Grab_state):
+			Grab();
+			if (millis() - lastTime >= 1500){
+				lastTime = millis();
+				current_firstStage = Turn_state;
+				break;
+			}
+		break;
+
+		case (Turn_state):
+      turningSpeed = turningSpeed180;
+			while(millis() - lastTime <= turn180Time){ //asumption of 180 turn
+			  turnInPlaceR(); //left side-truning seems to be the most consistent
+        }
+      turningSpeed = turningSpeed90;
+
+			stop();
+			lastTime = millis();
+			current_firstStage = Drive_state1;
+		break;
+    
+    case (Drive_state1): // make this a searchin algorithm??
+      simpleFollowLine();
+      if(millis() - lastTime >= 3000){ // time delay to allow it to get back on track
+        current_firstStage = Drive_state2;
+        lastTime = millis();
+      break;
+      }
+    break;
+
+    case(Drive_state2):
+      //goStraight(1, 1.0); // change this back if it dosent work
+      simpleFollowLine();
+      //lineDetection();
+      //simpleFollowLine();
+      if(lineDetectArray[1] == -1){ // checks if its out of bounds (end of tape). mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+        stop();
+        current_firstStage = Lower_state;
+        lastTime = millis();
+        break;
+      }
+    break;
+
+		case (Lower_state):
+      while(millis() - lastTime <= 500)
+      {
+        Lower();
+      }
+      while (millis() - lastTime <= 1000)
+      {
+        Release();
+        current_firstStage = getOut;
+        lastTime = millis();
+        break;
+      }
+    break;
+      /*Lower();
+      if (millis() - lastTime >= 800){
+				lastTime = millis();
+        current_firstStage = Release_state;
+        break;
+      }
+      
+      break;
+
+    case (Release_state):
+      Release();    // probobly edit this
+      if( millis()- lastTime >= 300){
+        current_firstStage = getOut;
+        lastTime = millis();
+      }
+      break;
+    */
+
+    case (getOut):
+        startingSpeed((lastTime), 90);
+			  goStraight(-1, 1.0); // whatch this closely now
+        lineDetection();
+
+			  if(ifT()){ // if T_section detected)
+          stop();
+          current_firstStage = TSection2;
+          lastTime= millis();
+          break;
+        }
+			
+      break;
+
+    case (TSection2):
+      if(cupSide == -1){ 
+        turn90L();
+      }
+      if(cupSide == 1){
+        turn90R();
+      }
+      Grab(); // closing the grabber to get it out of the way
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+
+    case (Go_Next_state):
+
+     // if(millis()- lastTime <=400){
+     // goStraight(1,1.0);
+     // }
+     // else{ // no new time-stamp this time, might be nice to have tho
+
+        simpleFollowLine();
+        if(millis() - lastTime >= 2000){
+          current_stage = SECOND;
+          //stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
+          lastTime = millis();
+          break;
+        }
+      //}
+      break;
+
+    default: //this might break the code, or fix it, Might be only used at the beginning if nothing else is defined...
+      current_stage = SECOND;
+      break;
+
+    }
 }
+
+
+
+//void Stage2(){
+//  speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+//  simpleFollowLine();
+//}
 
 void stage3(){
 switch(current_thirdStage){
@@ -694,7 +924,7 @@ void stageFour(){
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
 // main loop, for now just for testing
-void loop(){
+void loop(){  
   switch(current_stage){
     case (INIT): // only runs this one time
       //delay(2000); // This is now in the Setup-part
@@ -707,13 +937,18 @@ void loop(){
     case (FIRST):
 
       Stage1();
-      if(stage1Fin==1){ 
-        current_stage=SECOND;
-      }
+      //if(stage1Fin==1){ 
+      //  current_stage=SECOND;
+      //}
       break;
     
     case(SECOND):
-      Stage2();
+      //Stage2();
+      speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+      while(millis()-lastTime <= 4000){
+        simpleFollowLine();
+      }
+      simpleFollowLine();
       if(ifT()){
         stop();
         current_stage = THIRD;
