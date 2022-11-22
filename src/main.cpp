@@ -379,7 +379,7 @@ void turn90R(){
 
 // this moght not work if it ends up on the T-section
 void turn180(){ 
-    lastTime = millis();
+    //lastTime = millis();
   // while(millis()- lastTime <= goPastT){ // Back upp a little bit, Might be bad
   // goStraight(-1, 1.0);
   // }
@@ -816,9 +816,12 @@ void Stage1(){
 			//   turnInPlaceR(); //left side-truning seems to be the most consistent
       //   }
       // turningSpeed = turningSpeed90;
-      turn90L(); // first 90, might have to make some changes due to cup-weight, perhaps going back a little or increasing the turning-speed
+
+      //------------- test and choose between two 90-degrees or one 180;- last test used two 90-degrees
+      //turn90L(); // first 90, might have to make some changes due to cup-weight, perhaps going back a little or increasing the turning-speed
       // add small "go back" part to counteract the small forward drive? its intended to just use the momenum, so it might not matter ----------------------
-      turn90L();
+      //turn90L();
+      turn180();
 
 			stop();
 			lastTime = millis();
