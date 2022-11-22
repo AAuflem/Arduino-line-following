@@ -628,6 +628,7 @@ int stage1Fin=0;
 void Stage1(){
   switch(current_firstStage){
     case (Straight):
+
       if(millis() - lastTime <= 50){
         speed =150;
       }
