@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 //for the different modes in the different stages
-int speed = 100; // ----------------------------------------------
+int speed = 90; // ----------------------------------------------
 
 enum STAGE{INIT, FIRST, SECOND, THIRD, FOURTH};
 STAGE current_stage{INIT};
@@ -22,6 +22,7 @@ ThirdStage current_thirdStage{T1};
 
 enum FourthStage{Begin, Search, Fetch, GoBack, FindSpot, PutDown, Neutral, End};
 FourthStage current_fourthStage{Begin};
+// ---------------------- pins for 
 // line detection pins
 const int IR_L = 8;
 const int IR_C = 12;
@@ -31,48 +32,40 @@ const int SPDA = 5;
 const int SPDB = 6;
 const int DirB = 7;
 const int DirA = 4;
+// cup sensor-pin
+#define CupDist A0
+// camera
+const int Camera = 2;
+const int Camera_center = 10;
+
+//GRABBER
+const int ServoM = 9;
+
+// ----------- OTHER CONSTANTS DECLARATIONS
 
 // turning in place speed
-const int turningSpeed90 =160;
-int turningSpeed = 160;
-const int turningSpeed180 = 180;
+const int turningSpeed90 =140;
+int turningSpeed = 140;
+const int turningSpeed180 = 160;
 
 
 // time constant top turn 90 degrees
 const int turn90Time = 800;
 
 //time constant to turn 180 degrees
-const int turn180Time = 2100;
+const int turn180Time = 1600;
 
-// camera
-const int Camera = 2;
 
-// cup sensor-pin
-const int CupDist = 3;
 // cup-side variable
 int cupSide = 0; 
 
-//GRABBER
-const int ServoM = 9;
+// grabber
 Servo myservo;
 const int posClosed = 150;
 const int posOpen = 10;
 const int posLower = 105;
 
 unsigned long lastTime, stepTurnTimestamp;
-
-//PID declarations:
-//constants
-// double kp = 10;  // constant turning
-// double ki = -2;  // increases the turning over time (be carefull with this one!)
-// double kd = 20;  // how agressive the turning should start
-// //variables
-// unsigned long currentTime, previousTime, time;
-// double elapsedTime;
-// double error;
-// double lastError;
-// double pidIn, pidOut, setPoint;
-// double cumError, rateError;
 
 //motor controll declaration
 // const int maxSpeed = 220; //UNUSED
@@ -106,7 +99,7 @@ void setup() {
   myservo.attach(9);
   myservo.write(posOpen);
   //pinMode(DirB, OUTPUT);
-  delay(2000);
+  while(millis() < 2000){}
 }
 
 //motor A direction and speed, first wheel, motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -123,8 +116,7 @@ void MotorA(int motor, int spd){
     if(motor==0){
     digitalWrite(DirA, LOW);
     analogWrite(SPDA, 0);
-
-}
+  }
 }
 
 //motor B direction and speed,, second wheel motor= 0: stop, motor= 1: forward, motor= -1: backward
@@ -145,15 +137,27 @@ void MotorB(int motor, int spd){
 }
 }
 //---
-double turnRate = 1;
+// Normally set to 1.1 : this one amplifies the backwards component of the turning. actual turning is also ependent on the speed. 1.5 is the current amplification for the 
+double turnRate = 1.1;
+
 void turnRight(){
   MotorA(1, (int) speed*1.5);
-  MotorB(-1, (int) speed*1.1* turnRate);
+  MotorB(-1, (int) speed* turnRate);
 }
 
 void turnLeft(){
   MotorB(1, (int) speed*1.5);
-  MotorA(-1, (int) speed*1.1* turnRate);
+  MotorA(-1, (int) speed* turnRate);
+}
+
+void turn2lineL(){
+  MotorA(-1, 90);
+  MotorB(1, 150);
+}
+
+void turn2lineR(){
+  MotorA(1, 150);
+  MotorB(-1, 90);
 }
 
 void turnInPlaceR(){
@@ -189,54 +193,6 @@ void complete90TurnR(){
   }
 }
 
-// kode for svinging, bruker % for å angi relativ hastighe mellom hjulene, TDOD: teste og evt skrive kode for konvertering mellom input og %
-// //tar inn flyttall som skaleringsfaktor (0.0 og oppover) 
-// void turnR(double percent){
-//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
-
-//   double upscalingFactor = (double)(maxSpeed/speed);
-//   double downscalingFactor =1.0;
-//   double diff = percent - upscalingFactor;
-//   speed = (int) speed*scaleFactor; //allowed to become an int
-//   if(diff<=0){
-//     MotorA(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorB(1, -speed);
-//   }
-//   else if(diff>0){
-//     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
-//     MotorA(1, speed * upscalingFactor);
-//     MotorB(1, speed * downscalingFactor);
-//   }
-// }
-
-
-// void turnL(double percent){
-//   double scaleFactor = 1.0; //scales the turning speed down when below 1.0
-
-//   double upscalingFactor = (double)(maxSpeed/speed);
-//   double downscalingFactor =1.0;
-//   double diff = percent - upscalingFactor;
-//   speed = (int) speed*scaleFactor;
-//   if(diff<=0){
-//     MotorB(1, speed * (1+percent)); // mulig denne må forandres
-//     MotorA(1, -speed);
-//   }
-//   else if(diff>0){
-//     upscalingFactor = percent - diff;      // should give max-speed
-//     downscalingFactor = -(0.8 +diff);         //reduces speed of second wheel
-//     MotorB(1, speed * upscalingFactor);
-//     MotorA(1, speed * downscalingFactor);
-//   }
-// }
-
-
-//stores the last non-zero value of detected turning direction // not yet in use?
-// void lastDirBuff(){
-//   if(lineDetectArray[0]!=0){
-//     dirBuffer = lineDetectArray[0];
-//   }
-// }
 
 // returns the turning direction (0 == straight, 1== right, -1 == left), if it shoud keep going (0 == stop, 1 == go, -1 == back up) and if there is a T-section
 void lineDetection(){
@@ -329,83 +285,42 @@ void simpleFollowLine(){
 
 }
 
-
-//------------ funksjonene nedenfor brukes ikke ---------------
-
-// void followLine(){
-//   double setTurn =3;
+// void bacwardsFollow(){
 //   lineDetection();
-//   if(lineDetectArray[1]==1){
+//    //if(lineDetectArray[2]==0){
+//     if(lineDetectArray[1]==1){
 
-//     if(lineDetectArray[0] == 0){
-//       goStraight(1, 1.0);
+//       if(lineDetectArray[0] == 0){
+//         goStraight(-1, 1.0);
+//       }
+//       if(lineDetectArray[0]== 1){
+//         turnLeft();
+//       }
+//       if(lineDetectArray[0]== -1){
+//         turnRight();
+//       }
 //     }
-
-//     if(lineDetectArray[0]== 1){
-//       turnR(setTurn);
-//     }
-//     if(lineDetectArray[0]== -1)
-//       turnL(setTurn);
-//     }
-//   else if(lineDetectArray[1]== 0){ //stopping
-//     goStraight(0, 0); 
-//   }
-//   else if(lineDetectArray[1]== -1){ //reversing
-//     goStraight(-1, 0.5);
-//   }
-// }
-
-// //pid that uses lineDetection() to create a distance
-// double turnPID(double dir){
-
-//   currentTime = millis();
-//   elapsedTime = (double) (currentTime- previousTime);
-
-//   error = setPoint - dir;       // computiong the error, is eiter +1 or -1  when not following the line, not accounted for t-sections and running off track
-//   cumError +=  error * elapsedTime; //integrating
-//   rateError = (error - lastError)/elapsedTime; //derivative
-
-//   double out = kp*error + ki*cumError + kd*rateError; //summing and scaling the factors of the PID. 
-//   // rate error is only usefull for instant correction
-//   // error is constant
-//   // cumError gives how aggressive the car shoud be at correcting over time.
-
-//   //assigning previous/last values for the next round
-//   previousTime = currentTime;
-//   lastError = error;
-
-//   return out; // not shure about the size of the values
   
+//     // else if(lineDetectArray[1]== 0){ //stopping
+//     //   stop(); 
+//     // }
+    
+//     if(lineDetectArray[1]== -1){ //reversing
+//       goStraight(1, 1);
+//     }
 // }
+//.----------. not in use yet .----------.
 
-// void followLinePID(){
-//   double totScaleFactor =1.0; // for scaling the output from turnPID(), For emergencies
-//   lineDetection(); //initializing the line-detection
-
-//   double dirPID = turnPID(lineDetectArray[0])* totScaleFactor;
-//   if(lineDetectArray[1]==1){
-
-//     if(dirPID == 0){
-//       goStraight(1, 1.0);
-//     }
-
-//     if(dirPID >0){
-//       turnR(dirPID);
-//     }
-//     else{
-//       turnL(abs(dirPID));
-//     }
-//   }
-//   else if(lineDetectArray[1]== 0){
-//     goStraight(0, 1);
-//   }
-//   else if(lineDetectArray[1]== -1){
-//     goStraight(-1, 1);
+//stores the last non-zero value of detected turning direction // not yet in use
+// void lastDirBuff(){
+//   if(lineDetectArray[0]!=0){
+//     dirBuffer = lineDetectArray[0];
 //   }
 // }
 
 
-//ikke ferdig
+//------ buuffer for a fortsette en sving selv om man er out of bounds, ikke ferdig
+
 // void outOfBoundsBuffer(){
 //   int maxTime =300; //milliseconds
 //   time = millis();
@@ -437,91 +352,6 @@ void Release()
   myservo.write(posOpen);
 }
 
-//_______________grabber case-switch_________
-// void grabber(){
-// 	switch (current_state)
-// 	{
-// 		case (INIT):
-// 			myservo.write(posOpen);
-// 			lastTime = millis();
-// 			current_state = Go_To_Cup;
-// 		break;
-
-//     case (Go_To_Cup):
-//       speed = 75;
-//       simpleFollowLine();
-//       if(digitalRead(CupDist) == HIGH){
-//         stop();
-//         current_state = Grab_state;
-//         lastTime = millis();
-//         break;
-//       }
-//       break;
-		
-// 		case (Grab_state):
-// 			Grab();
-// 			if (millis() - lastTime >= 500)
-// 			{
-// 				lastTime = millis();
-// 				current_state = Turn_state;
-// 				break;
-// 			}
-// 		break;
-
-// 		case (Turn_state):
-// 			turn180();
-// 			if(millis() - lastTime >= 1200) //asumption of 180 turn
-// 			{
-// 				stop();
-// 				lastTime = millis();
-// 				current_state = Drive_state;
-// 				break;
-// 			}
-// 		break;
-
-//     case(Drive_state):
-//       simpleFollowLine();
-//       if(lineDetectArray[1] ==-1){ //mulig vi må definere noe mer for T-sections og for å plassere helt riktig
-//         stop();
-//         current_state = Lower_state;
-//         lastTime = millis();
-//         break;
-//       }
-//       break;
-
-// 		case (Lower_state):
-//       Lower();
-//       if (millis() - lastTime >= 500)
-//       {
-// 				lastTime = millis();
-//         current_state = Release_state;
-//         break;
-//       }
-//     break;
-
-//     case (Release_state):
-//       Release();
-// 			goStraight(-1, 140);
-//       lineDetection();
-// 			if (lineDetectArray[2] ==1){
-//         current_state = Go_Next_state;
-//         lastTime= millis();
-//         break;
-// 			}
-//       break;
-//     case (Go_Next_state):
-//       if(cupSide == -1){
-//         turnInPlaceL();
-//       }
-//       else if(cupSide == 1){
-//         turnInPlaceR();
-//       }
-//       if(time - lastTime >= 600){ // 180 defree tur time
-//         current_stage = SECOND;
-//       }
-//       break;
-//   }
-// }
 
 //returns true if there is a T-section
 bool ifT(){
@@ -534,35 +364,98 @@ bool ifT(){
 }
 
 
+// -------------------- Turning functions -----------------------
+const int startTurn= 180;
+const int goPastT = 40;
+
 void turn90L(){
-  while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
-    turnInPlaceL(); //same as turn180 but with directional controll
+  lastTime = millis();
+  while(millis()- lastTime <= goPastT){ // go a little further than the current T-section so that we have the turning-centre above the T-section(aproximated)
+    goStraight(1,1.0);
   }
+  lastTime= millis();
   stop();
+  while(millis() - lastTime <= startTurn){ //turns for a small amount of time to get out of the current line.
+    turnInPlaceL(); //turn in place
+  }
+  lastTime = millis();
+  while(millis()-lastTime <= 4*turn90Time){ // might not want a time-constraint here, but keeping it for now.
+    turnInPlaceL();         
+    if(digitalRead(IR_L)== LOW){
+      stop(); //might want to add correction for the codse, or a more rob ust way of finding the line again
+      break;
+    }
+  }
+  lastTime = millis();
 }
 
 void turn90R(){
-	while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
-    turnInPlaceR(); //same as turn180 but with directional controll
+  lastTime = millis();
+  while(millis()- lastTime <= goPastT){ // go a little further than the current T-section so that we have the turning-centre above the T-section(aproximated)
+    goStraight(1,1.0);
   }
+  lastTime= millis();
   stop();
+  while(millis() - lastTime <= startTurn){ //turns for a small amount of time to get out of the current line.
+    turnInPlaceR(); //turn in place
+  }
+  lastTime = millis();
+  while(millis()-lastTime <= 4*turn90Time){ // might not want a time-constraint here, but keeping it for now. // might create a 
+    turnInPlaceR();         
+    if(digitalRead(IR_R)== LOW){
+      stop(); //might want to add correction for the codse, or a more rob ust way of finding the line again
+      break;
+    }
+  }
+  lastTime = millis();
 }
 
+//-------------
+// this moght not work if it ends up on the T-section
+void turn180(){ 
+    //lastTime = millis();
+  // while(millis()- lastTime <= goPastT){ // Back upp a little bit, Might be bad
+  // goStraight(-1, 1.0);
+  // }
+  lastTime= millis();
+  stop();
+
+  while(millis() - lastTime <= (int)startTurn*1.4){ //turns for a small amount of time to get out of the current line, added a factor due to added weight 
+    turnInPlaceR(); //turn in place
+  }
+
+  lastTime = millis();
+  while(millis()-lastTime <= 2*turn180Time){ // using 180-time here instead of 90-time, gives more freedom
+    turnInPlaceR();         
+    if(digitalRead(IR_C)== HIGH){
+      stop(); //might want to add correction for the code, or a more rob ust way of finding the line again
+      break;
+    }
+  }
+  lastTime = millis();
+
+}
+
+// ------------------------
 void startingSpeed(unsigned int Time, int endSpeed){
-  if(millis() - Time <= 100){
-    speed =140;
+  if(millis() - Time <= 40){
+    speed =120;
   }
   else{ speed = endSpeed; }
 }
 
+//-------------Step-Turning-----------------------
+const int stepDrivingTime = 50;
+const int stepStoppingTime = 30;
+//currently takes 50 + 30 = 80 ms for one use/step, uses its own time-stamp
 void stepTurnL(){
-  speed = 200;
+  speed = 200; // potentially higher
   stepTurnTimestamp = millis();
-  while(millis() - stepTurnTimestamp <= 50){ // edit the time-constants
+  while(millis() - stepTurnTimestamp <= stepDrivingTime){ // edit the time-constants
     turnInPlaceL();
   }
   stepTurnTimestamp = millis();
-  while(millis() - stepTurnTimestamp <= 30){ // edit the time-constants
+  while(millis() - stepTurnTimestamp <= stepStoppingTime){ // edit the time-constants
     stop();
   }
 }
@@ -570,18 +463,48 @@ void stepTurnL(){
 void stepTurnR(){
  speed = 200;
   stepTurnTimestamp = millis();
-  while(millis() - stepTurnTimestamp <= 50){ // edit the time-constants
+  while(millis() - stepTurnTimestamp <= stepDrivingTime){ // edit the time-constants
     turnInPlaceL();
   }
   stepTurnTimestamp = millis();
-  while(millis() - stepTurnTimestamp <= 30){ // edit the time-constants
+  while(millis() - stepTurnTimestamp <= stepStoppingTime){ // edit the time-constants
     stop();
   }
 }
 
+// test these:
+void stepTurn90L(){
+  //int offCenter =0;
+  lastTime = millis();
+  while(digitalRead(IR_C ==HIGH)){
+    stepTurn90L();
+  }
+  stepTurnL(); // do one more step to get a little distance
+  while(digitalRead(IR_C ==LOW)){ // start searching for the line again
+  stepTurnL();
+  }
+  stop();//you are now above the centerline again
+
+}
+// test these:
+void stepTurn90R(){
+  //int offCenter =0;
+  lastTime = millis();
+  while(digitalRead(IR_C !=LOW)){
+    stepTurn90R();
+  }
+  stepTurnR(); // do one more step to get a little distance
+  while(digitalRead(IR_C !=HIGH)){ // start searching for the line again
+  stepTurnR();
+  }
+  stop();//you are now above the centerline again
+}
+
+
+
 // ------------------------------------------- startup -------------------------------------------------
-unsigned int cameraTurningTime = 400; // 400 when semil-low voltage, 
-unsigned int cameraDetectionTime = 7000;
+unsigned int cameraTurningTime = 300; // 400 when semil-low voltage, 300 with full batteries(11.5 voldts and up to 1.5 amps)
+unsigned int cameraDetectionTime = 7000; // this is a little big, but has a "buffer" se we wont miss anything
 void startup(){
   while(cupSide == 0){
     lastTime = millis();
@@ -627,10 +550,112 @@ void startup(){
 }
 
 
-// ---- case switches for the stages
-int stage1Fin=0; // this didnt seem to work
 
-void Stage1(){
+// void DialInCup(){
+//   if (digitalRead(Camera) == HIGH){ // everything within this one ? might not be needed/can lead to some mistakes?
+
+//   } 
+// }
+// ---- case switches for the stages:
+
+//int stage1Fin=0; // this didnt seem to work
+
+const int maksSearchingStpes = 10; //the amount of steps we want to stop at going in one direction
+const int cameraCenterDetectionTime= 3000; // find the "Lower Limit"
+
+// code for getting the cup in the centre of the camera, ends standing in the correct direction
+
+void searchCupCentre(){
+  int inCentre = 0;
+  lastTime = millis();
+  //while(digitalRead(Camera)== HIGH){ // keeps searching for as long as it takes( )
+    while(inCentre ==0){
+    for(int i = 1; i <= maksSearchingStpes; i++){
+
+      if(inCentre == 1){
+        lastTime = millis();
+        break;
+      }
+      while(millis() - lastTime <= cameraCenterDetectionTime) // this could use a lot of time....
+      if(digitalRead(Camera_center)== HIGH){
+        inCentre =1;
+        lastTime = millis();
+        break;// stops the waiting-period // --------YOU LEFT OFF HERE!!!!
+      }
+      stepTurnR();
+    }
+
+    
+    }
+
+
+}
+
+
+
+//this one dosent use the startup
+// --------------stage 1 , ALTERNATE-----------@
+/*
+void altStage1(){
+//startup-part
+  while(cupSide == 0){
+    lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
+        turnInPlaceL();
+    }
+      stop();
+    lastTime = millis();
+    while(millis()- lastTime <= cameraDetectionTime){ // 500 is the assumed time it takes for the rb-pi to detect the cup, with some slack
+      if (digitalRead(Camera) == HIGH){ // baisicly means high, might 
+        cupSide = -1;
+        break;
+      }
+    }
+    if(cupSide != 0){ //breaks out of the main while loop here
+      break;
+    }
+    //going to the dialing-in part after this
+    // else it wil go to the other side:
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant may need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    lastTime = millis();
+
+    while(millis()- lastTime <= 30){ // adding a stop when turning to look right
+    stop();
+    }
+    
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
+      turnInPlaceR();
+    }
+    stop();
+    lastTime = millis();
+    while(millis()- lastTime <= cameraDetectionTime){
+      if (digitalRead(Camera) == HIGH){
+        cupSide = 1;
+        break;
+      }
+    }
+    // checks if there currently is a cup thats detected, if so, stay at this side.
+    if(cupSide != 0){
+      break;
+    }
+    // if not, go middle and repeat
+		lastTime = millis();
+    while(millis() - lastTime <= cameraTurningTime){ // the constant need to be changed based on camera angle
+      turnInPlaceL();
+    }
+        lastTime = millis();
+
+    while(millis()- lastTime <= 30){ // adding a stop when turning to look right
+    stop();
+    }
+  }
+
+
+  //stage 1 part
   switch(current_firstStage){
     case (Straight):
       if(millis() - lastTime <= 50){
@@ -649,21 +674,16 @@ void Stage1(){
     case(TSection):
 
       if(cupSide == -1){
-			  while(millis() - lastTime <= turn90Time){ //turns to the correct side to fetch the cup
-          turnInPlaceL(); //same as turn180 but with directional controll
-        }
+        turn90L();
       }
       else if(cupSide == 1){
-        while(millis() - lastTime <= turn90Time){
-          turnInPlaceR();
-        }
+        turn90R();
       } 
       // potential problem if there for some reason is another value than 1 or -1 .......
       stop();
 			current_firstStage = Grabber_prepare;
 			lastTime = millis();
       break;
-
 
 		case (Grabber_prepare):
       Release(); // probably have this
@@ -742,23 +762,24 @@ void Stage1(){
         break;
       }
     break;
-      /*Lower();
-      if (millis() - lastTime >= 800){
-				lastTime = millis();
-        current_firstStage = Release_state;
-        break;
-      }
-      
-      break;
 
-    case (Release_state):
-      Release();    // probobly edit this
-      if( millis()- lastTime >= 300){
-        current_firstStage = getOut;
-        lastTime = millis();
-      }
-      break;
-    */
+    //   Lower();
+    //   if (millis() - lastTime >= 800){
+		// 		lastTime = millis();
+    //     current_firstStage = Release_state;
+    //     break;
+    //   }
+      
+    //   break;
+
+    // case (Release_state):
+    //   Release();    // probobly edit this
+    //   if( millis()- lastTime >= 300){
+    //     current_firstStage = getOut;
+    //     lastTime = millis();
+    //   }
+    //   break;
+    // 
 
     case (getOut):
         startingSpeed((lastTime -300), 80);
@@ -798,7 +819,7 @@ void Stage1(){
         simpleFollowLine();
         if(millis() - lastTime >= 3000){
           current_stage = SECOND;
-          stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
+          //stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
           lastTime = millis();
           break;
         }
@@ -811,13 +832,204 @@ void Stage1(){
 
     }
 }
+*/
 
+void Stage1(){
+  switch(current_firstStage){
+    case (Straight):
+      lastTime = millis();
+      //tartingSpeed(lastTime, 80);
+      speed = 90;
+      simpleFollowLine();
+      if (ifT()){
+        stop();
+        current_firstStage = TSection;
+        lastTime = millis();
+        while(millis()- lastTime <= 400){
+          stop();
+        }
+        lastTime = millis();
+        break;
+      }
+      break;
 
+    case(TSection):
 
-void Stage2(){
-  speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
-  simpleFollowLine();
+      if(cupSide == -1){
+        turn90L();
+      }
+      else if(cupSide == 1){
+        turn90R();
+      } 
+      // potential problem if there for some reason is another value than 1 or -1 .......
+      stop();
+
+			current_firstStage = Go_To_Cup;
+			lastTime = millis();
+      break;
+
+    case (Go_To_Cup):
+      startingSpeed(lastTime, 80);
+      simpleFollowLine();
+      if(digitalRead(CupDist) == LOW){ //LOW = close
+        stop();
+        current_firstStage = Grab_state;
+        lastTime = millis();
+        break;
+      }
+      break;
+		
+		case (Grab_state):
+			Grab();
+			if (millis() - lastTime >= 1500){
+				lastTime = millis();
+				current_firstStage = Turn_state;
+				break;
+			}
+		break;
+
+		case (Turn_state):
+      //------------- test and choose between two 90-degrees or one 180;- last test used two 90-degrees
+      turn90L(); // first 90, might have to make some changes due to cup-weight, perhaps going back a little or increasing the turning-speed
+      // add small "go back" part to counteract the small forward drive? its intended to just use the momenum, so it might not matter ----------------------
+      turn90L();
+      //turn180();
+
+			stop();
+			lastTime = millis();
+			current_firstStage = Drive_state1;
+		break;
+    
+    case (Drive_state1): // make this a searchin algorithm??
+      simpleFollowLine();
+      if(millis() - lastTime >= 3000){ // time delay to allow it to get back on track
+        current_firstStage = Drive_state2;
+        lastTime = millis();
+      break;
+      }
+    break;
+
+    case(Drive_state2):
+      //goStraight(1, 1.0); // change this back if it dosent work
+      simpleFollowLine();
+      //lineDetection();
+      //simpleFollowLine();
+      if(lineDetectArray[1] == -1){ // checks if its out of bounds (end of tape). mulig vi må definere noe mer for T-sections og for å plassere helt riktig
+        stop();
+        current_firstStage = Lower_state;
+        lastTime = millis();
+        break;
+      }
+    break;
+
+		case (Lower_state):
+      while(millis() - lastTime <= 500)
+      {
+        Lower();
+      }
+      while (millis() - lastTime <= 1000)
+      {
+        Release();
+      }
+      current_firstStage = getOut;
+      lastTime = millis();
+    break;
+
+    case (getOut):
+        //startingSpeed((lastTime), 80);
+        while(lastTime - millis() <= 200){
+          goStraight(-1,1.0);
+        }
+			  goStraight(-1, 1.0); // whatch this closely now //---------------------------TODO----------------------------------------
+        lineDetection();
+        
+			  if(ifT()){ // if T_section detected)
+          //stop(); // might have to correct the placement there----------
+          current_firstStage = TSection2;
+          lastTime= millis();
+          break;
+        }
+			
+      break;
+
+    case (TSection2):
+    while(millis() - lastTime <=300){ //completely stopping after detecting T-section
+      stop();
+    }
+    
+    if(cupSide == -1){
+      while (millis() - lastTime <= 1000)
+      {
+        turn2lineL();
+      }
+      stop();
+      Grab();
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+    }
+
+    if(cupSide == 1){
+      while (millis() - lastTime <= 1000)
+      {
+        turn2lineR();
+      }
+      stop();
+      Grab();
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+    }
+
+/*
+    while(millis()- lastTime <= 2000){ //going a little forward to get beyond the T-section ---- might cause problems with knocking over the cup..... adjust value
+      simpleFollowLine();
+      if(ifT()){
+        break;
+      }
+    }
+      if(cupSide == -1){ 
+        turn90L();
+      }
+      if(cupSide == 1){
+        turn90R();
+      }
+      Grab(); // closing the grabber to get it out of the way
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+*/
+
+    case (Go_Next_state):
+
+     // if(millis()- lastTime <=400){
+     // goStraight(1,1.0);
+     // }
+     // else{ // no new time-stamp this time, might be nice to have tho
+
+        simpleFollowLine();
+        if(millis() - lastTime >= 2000){ // simply timing when stage 2 begins
+          current_stage = SECOND;
+          //stage1Fin = 1; // aditional atempt at getting out of stage1, dosent seem to work
+          lastTime = millis();
+          break;
+        }
+      //}
+      break;
+
+    default: //this might break the code, or fix it, Might be only used at the beginning if nothing else is defined...
+      current_stage = SECOND;
+      break;
+
+    }
 }
+
+
+
+//void Stage2(){
+//  speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+//  simpleFollowLine();
+//}
 
 void stage3(){
 switch(current_thirdStage){
@@ -831,12 +1043,12 @@ switch(current_thirdStage){
     //}
     break;
   case (OBSTACLES):
-    speed = 170; // testing this value
+    speed = 170; // testing this value // it seems to work
     // add different turning??--------------------------------
     simpleFollowLine();
     if(millis()- lastTime >= 3500){ // increasing speed in the "end" of stage 3
       speed = 200;
-      turnRate = 1.3; // this is to get past the second beam and turn afterwards, it might be bad for the sand-pit
+      turnRate = 1.3; // this is to get past the second beam and turn afterwards, it might be bad for the sand-pit //seems to work
     }
     if(lineDetectArray[2] ==1){
       current_thirdStage = T2;
@@ -845,6 +1057,7 @@ switch(current_thirdStage){
   break;
   
   case (T2):
+    turnRate= 1.1; // standard turnRate
     turnInPlaceL();
     if(millis()- lastTime >= turn90Time){
       current_thirdStage = to_Fourth;
@@ -897,12 +1110,16 @@ void stageFour(){
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
 
-// main loop, for now just for testing
+// int a =0; // used for testing
+
 void loop(){
+  
   switch(current_stage){
+
     case (INIT): // only runs this one time
       //delay(2000); // This is now in the Setup-part
       speed = 80; // shouldnt matter
+      //cupSide = -1; //only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       startup();
       lastTime = millis(); //timestamp
       current_stage = FIRST;
@@ -910,14 +1127,21 @@ void loop(){
 
     case (FIRST):
 
+
       Stage1();
-      if(stage1Fin==1){ 
-        current_stage=SECOND;
-      }
+      //if(stage1Fin==1){ 
+      //  current_stage=SECOND;
+      //}
       break;
     
     case(SECOND):
-      Stage2();
+      //Stage2();
+      speed= 150; // get this to as much as possible, maybe adjust for entering and exiting the stage?
+      // WE MIGHT WANT TO ADD SHARPER TURNING AFTER A CERTAIN AMOUNT OF TIME HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!------------
+      while(millis()-lastTime <= 4000){
+        simpleFollowLine();
+      }
+      simpleFollowLine();
       if(ifT()){
         stop();
         current_stage = THIRD;

@@ -150,6 +150,16 @@ void turnLeft(){
   MotorA(-1, (int) speed* turnRate);
 }
 
+void turn2lineL(){
+  MotorA(-1, 90);
+  MotorB(1, 150);
+}
+
+void turn2lineR(){
+  MotorA(1, 150);
+  MotorB(-1, 90);
+}
+
 void turnInPlaceR(){
   //double scalingFactor = 1; //  can be changed to change the speed (0-1)
   MotorA(1, (int) turningSpeed * 1.1);
@@ -369,7 +379,7 @@ void turn90L(){
     turnInPlaceL(); //turn in place
   }
   lastTime = millis();
-  while(millis()-lastTime <= 2*turn90Time){ // might not want a time-constraint here, but keeping it for now.
+  while(millis()-lastTime <= 4*turn90Time){ // might not want a time-constraint here, but keeping it for now.
     turnInPlaceL();         
     if(digitalRead(IR_L)== LOW){
       stop(); //might want to add correction for the codse, or a more rob ust way of finding the line again
@@ -390,7 +400,7 @@ void turn90R(){
     turnInPlaceR(); //turn in place
   }
   lastTime = millis();
-  while(millis()-lastTime <= 2*turn90Time){ // might not want a time-constraint here, but keeping it for now. // might create a 
+  while(millis()-lastTime <= 4*turn90Time){ // might not want a time-constraint here, but keeping it for now. // might create a 
     turnInPlaceR();         
     if(digitalRead(IR_R)== LOW){
       stop(); //might want to add correction for the codse, or a more rob ust way of finding the line again
@@ -934,10 +944,6 @@ void Stage1(){
         lineDetection();
         
 			  if(ifT()){ // if T_section detected)
-          lastTime = millis();
-          while(millis() - lastTime <= 1000){
-            stop();
-          }
           //stop(); // might have to correct the placement there----------
           current_firstStage = TSection2;
           lastTime= millis();
@@ -950,10 +956,37 @@ void Stage1(){
     while(millis() - lastTime <=300){ //completely stopping after detecting T-section
       stop();
     }
-    lastTime = millis();
+    
+    if(cupSide == -1){
+      while (millis() - lastTime <= 1000)
+      {
+        turn2lineL();
+      }
+      stop();
+      Grab();
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+    }
 
-    while(millis() - lastTime <=200){ //going a little forward to get beyond the T-section ---- might cause problems with knocking over the cup..... adjust value
+    if(cupSide == 1){
+      while (millis() - lastTime <= 1000)
+      {
+        turn2lineR();
+      }
+      stop();
+      Grab();
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
+    }
+
+/*
+    while(millis()- lastTime <= 2000){ //going a little forward to get beyond the T-section ---- might cause problems with knocking over the cup..... adjust value
       simpleFollowLine();
+      if(ifT()){
+        break;
+      }
     }
       if(cupSide == -1){ 
         turn90L();
@@ -965,6 +998,7 @@ void Stage1(){
       current_firstStage = Go_Next_state;
       lastTime = millis();
       break;
+*/
 
     case (Go_Next_state):
 
@@ -1085,7 +1119,7 @@ void loop(){
     case (INIT): // only runs this one time
       //delay(2000); // This is now in the Setup-part
       speed = 80; // shouldnt matter
-      cupSide = -1; //only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      //cupSide = -1; //only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       startup();
       lastTime = millis(); //timestamp
       current_stage = FIRST;
