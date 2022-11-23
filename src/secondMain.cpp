@@ -1136,7 +1136,7 @@ void stage4(){
       }
       lastTime = millis();
       CupCounter ++; //this one is really important!!!
-
+      
       while(millis()- lastTime <= 3000){ // has a max time of 3 seconds to go back
         while(millis() - lastTime <= 200){ // letting it have a little time before it tries to detect the T-section again
           goStraight(-1, 1.0);
