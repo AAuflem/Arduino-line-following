@@ -1028,7 +1028,7 @@ void stage4(){
 
     case(Search):
     lastTime = millis();
-    searchCupCentre(); // this is a really big function, only runs once
+    searchCupCentre(); // Now we are 
     break;
 
       // if(millis()- lastTime <= 3000){
