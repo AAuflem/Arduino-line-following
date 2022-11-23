@@ -20,7 +20,7 @@ FirstStage current_firstStage{Straight};
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
 
-enum FourthStage{GoToleft, Search, Fetch, GoBack, FindFirstT, PutDown, GoToleft2, FindSecondT, End};
+enum FourthStage{GoToleft, Search, Fetch, FindFirstCupPlacement, PutDown, GoToleft2, FindSecondCupPlacement, End};
 FourthStage current_fourthStage{GoToleft};
 // ---------------------- pins for 
 // line detection pins
@@ -345,6 +345,7 @@ void Release()
 
 //returns true if there is a T-section
 bool ifT(){
+  lineDetection();
   if(lineDetectArray[2]==1){
     return true;
   }
@@ -515,6 +516,12 @@ void turnL()
   MotorB(1, 150);
   MotorA(-1, 90);
 }
+void turnR()
+{
+  MotorA(1, 150);
+  MotorB(-1, 90);
+}
+
 
 // void Stop()
 // {
@@ -746,9 +753,13 @@ void searchCupCentre(){
     break;
 
     case (minDist): // only to have a common exit-point 
-    if(digitalRead(CupDist) == LOW){ // its close
-    stop();
-    }
+      if(digitalRead(CupDist) == LOW){ // its close
+        stop();
+      }
+      while(digitalRead(CupDist) == HIGH){
+        stepStraight(1);
+      }
+      stop();
       lastTime = millis();
       current_fourthStage = Fetch;
     break;
@@ -863,10 +874,10 @@ void Stage1(){
 
     case (getOut):
         //startingSpeed((lastTime), 80);
-        while(lastTime - millis() <= 200){
+        while(millis() - lastTime <= 200){ // denne var litt feil  :))
           goStraight(-1,1.0);
         }
-			  goStraight(-1, 1.0); // whatch this closely now //---------------------------TODO----------------------------------------
+			  goStraight(-1, 1.0); // whatch this closely now 
         lineDetection();
         
 			  if(ifT()){ // if T_section detected)
@@ -902,7 +913,15 @@ void Stage1(){
 
     if (cupSide == 1)
     {
+      while(millis() - lastTime <= 1000)
+      {
+        turnR();
+      }
       stop();
+      Grab();
+      current_firstStage = Go_Next_state;
+      lastTime = millis();
+      break;
     }
 
     /*
@@ -994,20 +1013,25 @@ switch(current_thirdStage){
 }
 
 unsigned long LastT_Time =0; // starting with a high value to 
-const int GetPastT_Time = 1000;
+const int GetPastT_Time = 600;
 int CupCounter = 0;
 int TCounter = 0;
 
 // code for stage 4
 void stage4(){
   switch (current_fourthStage){
-    case (GoToleft):
-      while(TCounter <3){
+    case (GoToleft): //should work both times
+      lastTime = millis();
+      Release(); // making shure the grabber is ready, will be called 
+      while(millis() - lastTime <= 300) 
+      {} //simply waiting for arm to open up
+      while(TCounter < 3){
         simpleFollowLine();
-        if(ifT() and (millis()-LastT_Time >= GetPastT_Time)){  // keeps it from reading the same T-section as more than one
+        if(ifT() and (millis()-LastT_Time <= GetPastT_Time)){  // keeps it from reading the same T-section as more than one // might have to be recoded !!!!!!!
           TCounter +=1;
         }
       }
+
       turn90L(); // go to left side when at the final T-section
       lastTime = millis();
       while(millis() - lastTime <= 2000){ // time to get x amount to the left side of the "pit"
@@ -1027,31 +1051,177 @@ void stage4(){
     break;
 
     case(Search):
-    lastTime = millis();
-    searchCupCentre(); // Now we are 
+      lastTime = millis();
+      searchCupCentre(); // Now we are right in front of the cup
+      //sends us to Ftch;
+    break;
+    case (Fetch):
+      lastTime = millis();
+      Grab();
+      while(millis() - lastTime <= 400)
+      {} // simply wait for the grabber
+      lastTime = millis();
+      speed = 90; // this might have to be adjusted
+      while(digitalRead(IR_C)!= HIGH){ // waiting for it to detect
+        goStraight(-1, 1.0);
+        //stepStraight(-1); // CHOOSE ONE OF THESE!!!!!!!!!
+      }
+      lastTime = millis();
+      while(millis() - lastTime <= 200){
+        stop();
+      }
+      while(digitalRead(IR_C)!= HIGH){
+        stepStraight(1); 
+      }
+      stop();
+      lastTime = millis();
+      while(millis() - lastTime <= 500){ // assuming we are on a angle to the rigth based on our re-entery on the line:  // maybe adjust the timing
+        simpleFollowLine(); // follow it for 0.5 sec to re-allign the bot
+      }
+      if(CupCounter == 0){
+        lastTime = millis();
+        current_fourthStage = FindFirstCupPlacement;
+        break;
+      }
+      if(CupCounter >= 1){
+        lastTime = millis();
+        current_fourthStage = FindSecondCupPlacement;
+        break;
+      }
     break;
 
-      // if(millis()- lastTime <= 3000){
-      //   if(analogRead(Camera_center) == HIGH){
-      //     current_fourthStage = Fetch;
-      //     lastTime = millis();
-      //     break;
-      //   }
-      //   break;
-      // }
-      // else{
-      //   stepTurnL();
-      //   //counter += 1;
-      //   lastTime = millis();
-      //  // if(counter >= 10){
-      //  //   turn90R();
-      //  // }
-      // }
+    case (FindFirstCupPlacement):
+      while(TCounter == 3){
+        simpleFollowLine();
+        if(ifT()){
+          turn90R();
+          TCounter-- ; // decrementing (TCounter -= 1 )
+          //break; // this is actually extra
+        }
+        lastTime = millis();
+      }
+      while(millis() - lastTime <= 800){ //added time to get past T-section
+        simpleFollowLine();
+      }
+      lastTime = millis();
+      while(TCounter == 2){ // this might be a little "brittle" compared to the rest of the code
+        simpleFollowLine();
+        if(ifT()){
+          TCounter --; //keeping track of where we are for later use
+          turn90L(); // turn into the correct T-section
+        }
+      }
+      lastTime = millis();
+      while(millis() - lastTime <= 200){
+        stop();
+      }
+      lastTime = millis();
+      while(! ifT()){ // this should work, but might be wierd
+        simpleFollowLine();
+      }
+      stop();
+      lastTime = millis();
+      current_fourthStage = PutDown;
+    break;
 
 
-      // stepTurnL();
-      break;
+    case (PutDown):
+       while(millis() - lastTime <= 500)
+      {
+        Lower();
+      }
+      while (millis() - lastTime <= 1000)
+      {
+        Release();
+      }
+      lastTime = millis();
+      CupCounter ++; //this one is really important!!!
+
+      while(millis()- lastTime <= 3000){ // has a max time of 3 seconds to go back
+        while(millis() - lastTime <= 200){ // letting it have a little time before it tries to detect the T-section again
+          goStraight(-1, 1.0);
+        }
+        goStraight(-1, 1.0);
+        lineDetection(); // this should not be required anymore, but better safe than sorry
+        if(ifT()){
+          stop();
+          lastTime = millis();
+          TCounter ++;
+          break;
+        }
+      }
+      lastTime = millis();
+      while(millis() - lastTime <= 500){
+      stop();
+      }
+      lastTime = millis();
+      // //trying to use the code from stage 1 here instead since it works
+      // while(millis() - lastTime <= 500){
+        // goStraight(1, 1.0);
+        // if(ifT()){
+          // lastTime = millis();
+          // break;
+        // }
+      // }
+
+      //
+      while(millis() - lastTime <= 1000) // dont like that there is only timing tho
+      {
+        turnL();
+        if(digitalRead(IR_R)== LOW){ //detects
+          break;
+        }
+      }
+      stop();
+      Grab();
+      lastTime = millis();
+      current_fourthStage = GoToleft;
+    break;
+
+    case (FindSecondCupPlacement):
+      while(TCounter == 3){
+        simpleFollowLine();
+        if(ifT()){
+          turn90R();
+          TCounter-- ; // decrementing (TCounter -= 1 )
+          //break; // this is actually extra
+        }
+        lastTime = millis();
+      }
+      while(millis() - lastTime <= 800){ //added time to get past T-section
+        simpleFollowLine();
+      }
+      lastTime = millis();
+      while(TCounter == 2){ // this might be a little "brittle" compared to the rest of the code
+        simpleFollowLine();
+        if(ifT()){ 
+          TCounter --; // should only be possib le to call this once //keeping track of where we are fo
+        }
+      }
+      // goes to the next T
+      while(TCounter == 1){ // this might be a little "brittle" compared to the rest of the code
+        simpleFollowLine();
+        if(ifT()){
+          TCounter --; //keeping track of where we are
+          turn90L(); // turn into the correct T-section
+        }
+      }
+      lastTime = millis();
+      while(millis() - lastTime <= 200){
+        stop();
+      }
+      lastTime = millis();
+      while(! ifT()){ // this should work, but might be wierd
+        simpleFollowLine();
+      }
+      stop();
+      lastTime = millis();
+      current_fourthStage = PutDown;
+    break;
+
+
   }
+
 }
 
 // ----------------------------|||||||||||||| main loop |||||||||||||------------------------
