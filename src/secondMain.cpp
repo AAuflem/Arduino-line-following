@@ -20,7 +20,7 @@ FirstStage current_firstStage{Straight};
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
 
-enum FourthStage{GoToleft, Search, Fetch, FindFirstCupPlacement, PutDown, GoToleft2, FindSecondCupPlacement, End};
+enum FourthStage{GoToleft, Search, Fetch, FindFirstCupPlacement, PutDown, FindSecondCupPlacement, End};
 FourthStage current_fourthStage{GoToleft};
 // ---------------------- pins for 
 // line detection pins
@@ -1016,7 +1016,7 @@ unsigned long LastT_Time =0; // starting with a high value to
 const int GetPastT_Time = 600;
 int CupCounter = 0;
 int TCounter = 0;
-
+int celebCounter = 0;
 // code for stage 4
 void stage4(){
   switch (current_fourthStage){
@@ -1136,7 +1136,7 @@ void stage4(){
       }
       lastTime = millis();
       CupCounter ++; //this one is really important!!!
-      
+
       while(millis()- lastTime <= 3000){ // has a max time of 3 seconds to go back
         while(millis() - lastTime <= 200){ // letting it have a little time before it tries to detect the T-section again
           goStraight(-1, 1.0);
@@ -1150,21 +1150,18 @@ void stage4(){
           break;
         }
       }
+      if(CupCounter >= 2){ // checking if we are finished!!
+        lastTime = millis();
+        current_fourthStage = End;
+        break;
+      }
+
       lastTime = millis();
       while(millis() - lastTime <= 500){
       stop();
       }
       lastTime = millis();
-      // //trying to use the code from stage 1 here instead since it works
-      // while(millis() - lastTime <= 500){
-        // goStraight(1, 1.0);
-        // if(ifT()){
-          // lastTime = millis();
-          // break;
-        // }
-      // }
 
-      //
       while(millis() - lastTime <= 1000) // dont like that there is only timing tho
       {
         turnL();
@@ -1177,6 +1174,8 @@ void stage4(){
       lastTime = millis();
       current_fourthStage = GoToleft;
     break;
+
+//-------
 
     case (FindSecondCupPlacement):
       while(TCounter == 3){
@@ -1219,7 +1218,28 @@ void stage4(){
       current_fourthStage = PutDown;
     break;
 
+    // finitos
+    case (End): //que celebrations!!
+    turningSpeed = 200;
+    turnInPlaceL();
+    if(millis() - lastTime <=  400){
+      Grab();
+    }
+    if(millis()- lastTime >=400){
+      Release();
+    }
+    if(millis() - lastTime >= 800){
+      lastTime = millis();
+      celebCounter ++;
+    }
 
+    if(celebCounter >= 4){ // infinite loop for after we get an A :)
+      Grab();
+      while(true){
+        stop();
+      }
+    }
+    break;
   }
 
 }
