@@ -61,9 +61,9 @@ int cupSide = 0;
 
 // grabber
 Servo myservo;
-const int posClosed = 150;
-const int posOpen = 10;
-const int posLower = 105;
+const int posClosed = 100;
+const int posOpen = 5;
+const int posLower = 90;
 
 unsigned long lastTime, stepTurnTimestamp;
 
@@ -412,13 +412,13 @@ void turn180(){
   stop();
 
   while(millis() - lastTime <= (int)startTurn*1.4){ //turns for a small amount of time to get out of the current line, added a factor due to added weight 
-    turnInPlaceR(); //turn in place
+    turnInPlaceL(); //turn in place
   }
 
   lastTime = millis();
   while(millis()-lastTime <= 2*turn180Time){ // using 180-time here instead of 90-time, gives more freedom
-    turnInPlaceR();         
-    if(digitalRead(IR_R)== LOW){
+    turnInPlaceL();         
+    if(digitalRead(IR_L)== LOW){
       stop(); //might want to add correction for the code, or a more rob ust way of finding the line again
       break;
     }
@@ -436,9 +436,9 @@ void startingSpeed(unsigned int Time, int endSpeed){
 }
 
 //-------------Step-Turning-----------------------
-const int stepDrivingTime = 50;
-const int stepStoppingTime = 250;
-const int stepTurningSpeed = 200;
+const int stepDrivingTime = 100;
+const int stepStoppingTime = 500;
+const int stepTurningSpeed = 220;
 //currently takes 50 + 250 = 300 ms for one use/step, uses its own time-stamp
 void stepTurnL(){
   turningSpeed = stepTurningSpeed; 
@@ -458,7 +458,7 @@ void stepTurnR(){
   turningSpeed = stepTurningSpeed; 
   stepTurnTimestamp = millis();
   while(millis() - stepTurnTimestamp <= stepDrivingTime){ // edit the time-constants
-    turnInPlaceL();
+    turnInPlaceR();
   }
   stepTurnTimestamp = millis();
   while(millis() - stepTurnTimestamp <= stepStoppingTime){ // edit the time-constants
@@ -499,7 +499,8 @@ int prevSpeed= 0;
 //dir HAS to be 1 or -1 (or 0 but dosent make sense)
 void stepStraight(int dir){
   prevSpeed = speed;
-  speed =stepTurningSpeed;
+  speed =stepTurningSpeed; // logic seems wierd, but we only use the values from the step turning
+  stepTurnTimestamp = millis();
   while(millis() - stepTurnTimestamp <= stepDrivingTime){ // edit the time-constants
     goStraight(dir, 1.0);
   }
@@ -508,7 +509,6 @@ void stepStraight(int dir){
     stop();
   }
   speed = prevSpeed;
-
 }
 
 void turnL()
@@ -598,7 +598,7 @@ SearchingAlgorithm current_iteration{startFindingCup};
 
 
 void searchCupCentre(){
-  int ITDrivingTime = 5000;
+  unsigned long ITDrivingTime = 1500;
   int doneOneIT =0;
   int wasInCentre =0; // remember if it was correct
   //int inCentre = 0; // update more frequently //maybe not needed?
@@ -607,17 +607,19 @@ void searchCupCentre(){
   //while(digitalRead(Camera)== HIGH){ // keeps searching for as long as it takes( )
   switch(current_iteration){
     case (startFindingCup):
-      while(digitalRead(Camera)!= HIGH){ // when it dosent see anny cups
+      while(digitalRead(Camera_center) == LOW){ // when it dosent see anny cups
         stepTurnR(); // we potentially need a puase here to allow camera to detect
-        if(digitalRead(Camera_center)== HIGH){ // checks if the object detected is/has been in the center due to camera-lag
+        if(digitalRead(Camera_center) != LOW){ // checks if the object detected is/has been in the center due to camera-lag
           wasInCentre = 1;
         }
       }
 
-      if(digitalRead(Camera_center)==HIGH){
-        current_iteration = iterateCloser;
+      if(digitalRead(Camera_center) != LOW){
+        //current_iteration = iterateCloser;
+        stepStraight(1);
         break;
       }
+      /*
       if((digitalRead(Camera_center)==LOW) && wasInCentre == 0){
         current_iteration = steppingRight;
         break;
@@ -626,12 +628,13 @@ void searchCupCentre(){
         current_iteration = steppingLeft;
         break;
       }
+      */
     break;
 
     case (steppingRight):
       stepTurnR();
       lastTime = millis();
-      if(digitalRead(Camera_center == HIGH)){ // we might have to add a delay in here to allow for the camera to catch up, and have a slower stepping-function to call afterwards
+      if(digitalRead(Camera_center) != LOW){ // we might have to add a delay in here to allow for the camera to catch up, and have a slower stepping-function to call afterwards
         stop();
         lastTime = millis();
         current_iteration = iterateCloser;
@@ -639,19 +642,19 @@ void searchCupCentre(){
       }
 
       //loosing sight of the cup
-      if(digitalRead(Camera)!= HIGH){ //if it looses the cup in picture // steps left three times to get back to the lost 
+      if(digitalRead(Camera) == LOW){ //if it looses the cup in picture // steps left three times to get back to the lost 
         for(int i =0; i <=4; i++){ //steps four times to the Left (back)
           stepTurnL();
           lastTime = millis();
         }
         while(millis() - lastTime <=4000){ //waiting for camera to catch up.
-          if(digitalRead(Camera)== HIGH){
+          if(digitalRead(Camera) != LOW){
             current_iteration = steppingLeft;
             break;
           }
         }
       }
-      if(digitalRead(IR_C == HIGH) && doneOneIT ==0){ // doneONEIT is here to stop it from getting wierd signals and just start spinning 
+      if(digitalRead(IR_C) == HIGH && doneOneIT ==0){ // doneONEIT is here to stop it from getting wierd signals and just start spinning 
         turn180();
         current_iteration = startFindingCup; //back to start :) -----------This could be a problem with errors from the sensors
         break;
@@ -662,7 +665,7 @@ void searchCupCentre(){
     case (steppingLeft):
       stepTurnL();
       lastTime = millis();
-      if(digitalRead(Camera_center == HIGH)){ // we might have to add a delay in here to allow for the camera to catch up, and have a slower stepping-function to call afterwards
+      if(digitalRead(Camera_center) != LOW){ // we might have to add a delay in here to allow for the camera to catch up, and have a slower stepping-function to call afterwards
         stop();
         lastTime = millis();
         current_iteration = iterateCloser;
@@ -670,13 +673,13 @@ void searchCupCentre(){
       }
 
       //loosing sight of the cup
-      if(digitalRead(Camera)!= HIGH){ //if it looses the cup in picture // steps left three times to get back to the lost 
+      if(digitalRead(Camera) == LOW){ //if it looses the cup in picture // steps left three times to get back to the lost 
         for(int i =0; i <=4; i++){ //steps four times to the Left (back)
           stepTurnR();
           lastTime = millis();
         }
         while(millis() - lastTime <=4000){ //waiting for camera to catch up.
-          if(digitalRead(Camera)== HIGH){
+          if(digitalRead(Camera) != LOW){
             current_iteration = steppingRight;
             break;
           }
@@ -693,14 +696,14 @@ void searchCupCentre(){
       lastTime = millis();
       while(millis() - lastTime <= ITDrivingTime){ // the time here has to be adjusted, might make it a big number, then split it in two one or two times !!!!
         stepStraight(1);
-        if(digitalRead(Camera)!= HIGH || digitalRead(CupDist) == LOW){ // cant see the cupp annymore (too close) OR the cup_dist sensor detects it
+        if(digitalRead(Camera) == LOW || digitalRead(CupDist) == LOW){ // cant see the cupp annymore (too close) OR the cup_dist sensor detects it
           stop();
           current_iteration = minDist; // not shure it this will break out completely, i thinkj it only will exit the loop
           isClose =1;
           break;
         }
       }
-      if(isClose ==1){
+      if(isClose >=1){
         lastTime = millis();
         current_iteration = minDist;
         break;
@@ -711,18 +714,18 @@ void searchCupCentre(){
     break;
 
     case (checkSenter):
-      while(millis() - lastTime <= 1000){ // waiting to chack actual footage from camera
+      while(millis() - lastTime <= 500){ // waiting to check actual footage from camera
         //digitalRead(Camera_center); // does not matter
       }
       lastTime = millis();
-      if(digitalRead(Camera_center== HIGH)){
+      if(digitalRead(Camera_center) != LOW){
         lastTime = millis();
         current_iteration = iterateCloser;
         break;
       }
 
 
-      if(digitalRead(Camera_center) == LOW && digitalRead(Camera)== HIGH){ // checking if the cup is stil centered, and that we are not too close
+      if(digitalRead(Camera_center) == LOW && digitalRead(Camera) != LOW){ // checking if the cup is stil centered, and that we are not too close
         for(int j = 0; j <= 3; j++){ // step left 4 times
           stepTurnL();
         }
@@ -730,7 +733,7 @@ void searchCupCentre(){
         while(millis() - lastTime <= 2000){// waiting for camera
         }
 
-        if(digitalRead(Camera_center) == LOW && digitalRead(Camera)== HIGH){
+        if(digitalRead(Camera_center) == LOW && digitalRead(Camera) != LOW){
           lastTime = millis();
           current_iteration = steppingRight;
           break;
@@ -738,7 +741,7 @@ void searchCupCentre(){
         // else
         else{
           for(int j = 0; j <= 1; j++){
-            stepTurn90R();
+            stepTurnR();
           }
           break;// stay in checkSenter
         }
@@ -1013,7 +1016,7 @@ switch(current_thirdStage){
 }
 
 unsigned long LastT_Time =0; // starting with a high value to 
-const int GetPastT_Time = 600;
+const int GetPastT_Time = 200;
 int CupCounter = 0;
 int TCounter = 0;
 int celebCounter = 0;
@@ -1027,34 +1030,52 @@ void stage4(){
       {} //simply waiting for arm to open up
       while(TCounter < 3){
         simpleFollowLine();
-        if(ifT() and (millis()-LastT_Time <= GetPastT_Time)){  // keeps it from reading the same T-section as more than one // might have to be recoded !!!!!!!
-          TCounter +=1;
+        lastTime = millis();
+        if(ifT() && (millis() - LastT_Time >= GetPastT_Time+ 400)){  // keeps it from reading the same T-section as more than one // might have to be recoded !!!!!!!
+          TCounter ++;
+          while(millis() - lastTime <=400){
+            stop();
+          }
         }
       }
+      lastTime= millis();
 
-      turn90L(); // go to left side when at the final T-section
+      // // turn90L(); // go to left side when at the final T-section
+      // turn90L();
+       while(millis() - lastTime <= 800)
+      {
+        turnL();
+      }
+      while(millis() - lastTime <= 1000){
+        stop();
+      }
       lastTime = millis();
-      while(millis() - lastTime <= 2000){ // time to get x amount to the left side of the "pit"
+      while(millis() - lastTime <= 50){ // time to get x amount to the left side of the "pit"
         simpleFollowLine();
       }
-      stop();
+      while(millis() - lastTime <= 3050){
+        stop();
+      }
       lastTime = millis();
-      while (millis()- lastTime <= 700){ // turning about 90 degrees to the right // scetchy due to only using timing!!
+      while (millis()- lastTime <= 500){ // turning about 90 degrees to the right // scetchy due to only using timing!!
        turnInPlaceR();
       }
       lastTime = millis();
       while(millis() - lastTime <= 100){ // traveling a little bit forward to be able to search the whole area without hitting the Line again
         goStraight(1, 1.0);
       }
+      stop();
       lastTime = millis();
       current_fourthStage = Search;
     break;
 
+//----------------------
     case(Search):
       lastTime = millis();
       searchCupCentre(); // Now we are right in front of the cup
       //sends us to Ftch;
     break;
+// ----------------------
     case (Fetch):
       lastTime = millis();
       Grab();
@@ -1162,7 +1183,7 @@ void stage4(){
       }
       lastTime = millis();
 
-      while(millis() - lastTime <= 1000) // dont like that there is only timing tho
+      while(millis() - lastTime <= 500) // dont like that there is only timing tho
       {
         turnL();
         if(digitalRead(IR_R)== LOW){ //detects
@@ -1249,6 +1270,16 @@ void stage4(){
 // int a =0; // used for testing
 
 void loop(){
+  current_stage = FOURTH;
+  // while(true){
+
+  // if(digitalRead(Camera_center) != LOW){
+  //   turnInPlaceL();
+  // }
+  // if(digitalRead(Camera_center) == LOW){
+  //   stop();
+  // }
+  // }
   // while(true){
   //   speed = 80;
   //   simpleFollowLine();
@@ -1263,7 +1294,6 @@ void loop(){
   //   }
 
   // }
-
   
   switch(current_stage){
 
