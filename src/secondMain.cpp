@@ -20,7 +20,7 @@ FirstStage current_firstStage{Straight};
 enum ThirdStage{T1, OBSTACLES, T2, to_Fourth};
 ThirdStage current_thirdStage{T1};
 
-enum FourthStage{GoToleft, Search, Fetch, FindFirstCupPlacement, PutDown, FindSecondCupPlacement, End};
+enum FourthStage{GoToleft, GetGut, Search, Fetch, findLine, FindFirstCupPlacement, PutDown, FindSecondCupPlacement, End};
 FourthStage current_fourthStage{GoToleft};
 // ---------------------- pins for 
 // line detection pins
@@ -61,7 +61,7 @@ int cupSide = 0;
 
 // grabber
 Servo myservo;
-const int posClosed = 100;
+const int posClosed = 120;
 const int posOpen = 5;
 const int posLower = 90;
 
@@ -160,6 +160,11 @@ void turnInPlaceL(){
   //double scalingFactor = 1; //  can be changed to change the speed (0-1)
   MotorB(1, (int) turningSpeed * 1.1);
   MotorA(-1, (int) turningSpeed * 1.1);
+}
+
+void scanStepR(){
+  MotorA(1, 200);
+  MotorB(-1, 200);
 }
 
 //dir = 1 forward, dir = -1 backwards, dir = 0 stop
@@ -436,9 +441,9 @@ void startingSpeed(unsigned int Time, int endSpeed){
 }
 
 //-------------Step-Turning-----------------------
-const int stepDrivingTime = 100;
-const int stepStoppingTime = 500;
-const int stepTurningSpeed = 220;
+const int stepDrivingTime = 175;
+const int stepStoppingTime = 1500;
+const int stepTurningSpeed = 230;
 //currently takes 50 + 250 = 300 ms for one use/step, uses its own time-stamp
 void stepTurnL(){
   turningSpeed = stepTurningSpeed; 
@@ -455,16 +460,16 @@ void stepTurnL(){
 
 //currently takes 50 + 250 = 300 ms for one use/step, uses its own time-stamp
 void stepTurnR(){
-  turningSpeed = stepTurningSpeed; 
+  //turningSpeed = stepTurningSpeed; 
   stepTurnTimestamp = millis();
   while(millis() - stepTurnTimestamp <= stepDrivingTime){ // edit the time-constants
-    turnInPlaceR();
+    scanStepR();
   }
   stepTurnTimestamp = millis();
   while(millis() - stepTurnTimestamp <= stepStoppingTime){ // edit the time-constants
     stop();
   }
-  turningSpeed = turningSpeed90;
+  //turningSpeed = turningSpeed90;
 }
 
 // test these:
@@ -472,7 +477,7 @@ void stepTurn90L(){
   //int offCenter =0;
   lastTime = millis();
   while(digitalRead(IR_C ==HIGH)){
-    stepTurn90L();
+    stepTurnL();
   }
   stepTurnL(); // do one more step to get a little distance
   while(digitalRead(IR_C ==LOW)){ // start searching for the line again
@@ -486,7 +491,7 @@ void stepTurn90R(){
   //int offCenter =0;
   lastTime = millis();
   while(digitalRead(IR_C !=LOW)){
-    stepTurn90R();
+    stepTurnR();
   }
   stepTurnR(); // do one more step to get a little distance
   while(digitalRead(IR_C !=HIGH)){ // start searching for the line again
@@ -592,11 +597,11 @@ const int maksSearchingStpes = 10; //the amount of steps we want to stop at goin
 const int cameraCenterDetectionTime= 3000; // find the "Lower Limit"
 
 // code for getting the cup in the centre of the camera, ends standing in the correct direction
-enum SearchingAlgorithm{startFindingCup, iterateCloser, minDist, steppingLeft, steppingRight, checkSenter};
-SearchingAlgorithm current_iteration{startFindingCup};
+// enum SearchingAlgorithm{startFindingCup, iterateCloser, minDist, steppingLeft, steppingRight, checkSenter};
+// SearchingAlgorithm current_iteration{startFindingCup};
 
 
-
+/*
 void searchCupCentre(){
   unsigned long ITDrivingTime = 1500;
   int doneOneIT =0;
@@ -782,7 +787,20 @@ void searchCupCentre(){
     break;
   }
 }
-
+*/
+void searchCup(){
+  //unsigned long ITDrivingTime = 1500;
+  while(digitalRead(Camera) == LOW){ // when it dosent see anny cups
+    stepTurnR(); // we potentially need a puase here to allow camera to detect
+  }
+  while(digitalRead(Camera_center)==LOW){
+    stepTurnR();
+  }
+  lastTime = millis();
+  while(millis() - lastTime <= 400){
+    stop();
+  }
+}
 
 
 
@@ -1034,9 +1052,11 @@ const int GetPastT_Time = 200;
 int CupCounter = 0;
 int TCounter = 0;
 int celebCounter = 0;
+
 // code for stage 4
 void stage4(){
   switch (current_fourthStage){
+
     case (GoToleft): //should work both times
       lastTime = millis();
       Release(); // making shure the grabber is ready, will be called 
@@ -1044,19 +1064,24 @@ void stage4(){
       {} //simply waiting for arm to open up
       while(TCounter < 3){
         simpleFollowLine();
-        lastTime = millis();
+        //lastTime = millis();
+
         if(ifT() && (millis() - LastT_Time >= GetPastT_Time+ 400)){  // keeps it from reading the same T-section as more than one // might have to be recoded !!!!!!!
           TCounter ++;
           while(millis() - lastTime <=400){
             stop();
           }
+          lastTime = millis();
         }
       }
       lastTime= millis();
+      current_fourthStage = GetGut;
+    break;
 
       // // turn90L(); // go to left side when at the final T-section
       // turn90L();
-       while(millis() - lastTime <= 800)
+    case (GetGut):
+      while(millis() - lastTime <= 800)
       {
         turnL();
       }
@@ -1068,44 +1093,71 @@ void stage4(){
       while(millis() - lastTime <= 4050){
         stop();
       }
-      lastTime = millis();
-      while (millis()- lastTime <= 500){ // turning about 90 degrees to the right // scetchy due to only using timing!!
+      while (millis()- lastTime <= 4500){ // turning about 90 degrees to the right // scetchy due to only using timing!!
        turnInPlaceR();
       }
-      while( millis() - lastTime <= 800){
+      while( millis() - lastTime <= 5000){
         stop();
       }
-      current_fourthStage = Search;
       lastTime = millis();
+      current_fourthStage = Search;
     break;
 
-//----------------------
+    //----------------------
     case(Search):
-      searchCupCentre(); // Now we are right in front of the cup
+      searchCup(); // Now we are right in front of the cup
+      lastTime = millis();
+      current_fourthStage = Fetch;
+      //stepTurnR();
       //sends us to Ftch;
     break;
-// ----------------------
+    
+    // ----------------------
     case (Fetch):
-      lastTime = millis();
-      Grab();
-      while(millis() - lastTime <= 400)
-      {stop();} // simply wait for the grabber
-      lastTime = millis();
-      speed = 90; // this might have to be adjusted
-      while(digitalRead(IR_C)!= HIGH){ // waiting for it to detect
-        goStraight(-1, 1.0);
-        //stepStraight(-1); // CHOOSE ONE OF THESE!!!!!!!!!
+      while(digitalRead(CupDist) != LOW){
+        goStraight(1, 1.0);
       }
+      lastTime =millis();
+      Grab();
+      while(millis() - lastTime <= 400){
+        stop();
+      }
+
+      while(digitalRead(IR_C) != HIGH){ // waiting for it to detect
+        goStraight(-1, 1.0);
+      }
+      stop();
+      current_fourthStage = findLine;
       lastTime = millis();
+    break;
+      // while(millis() - lastTime <= 600){
+      //   goStraight(1, 1.0);
+      // }
+      // while(digitalRead(CupDist) == HIGH){ // is far away
+      //   //  stepStraight(1);
+      //   goStraight(1, 1.0);
+      //  }
+      // lastTime = millis();
+      // while(millis() - lastTime <= 200){
+      // stop();
+      // }
+
+      // Grab();
+       // simply wait for the grabber
+      //speed = 90; // this might have to be adjusted
+
+
+
+    case (findLine):
       while(millis() - lastTime <= 200){
         stop();
       }
       while(digitalRead(IR_C)!= HIGH){
-        stepStraight(1); 
+        goStraight(1, 1.0);
       }
       stop();
       lastTime = millis();
-      while(millis() - lastTime <= 500){ // assuming we are on a angle to the rigth based on our re-entery on the line:  // maybe adjust the timing
+      while(millis() - lastTime <= 300){ // assuming we are on a angle to the rigth based on our re-entery on the line:  // maybe adjust the timing
         simpleFollowLine(); // follow it for 0.5 sec to re-allign the bot
       }
       if(CupCounter == 0){
@@ -1119,7 +1171,7 @@ void stage4(){
         break;
       }
     break;
-
+      /*
     case (FindFirstCupPlacement):
       while(TCounter == 3){
         simpleFollowLine();
@@ -1205,7 +1257,7 @@ void stage4(){
       current_fourthStage = GoToleft;
     break;
 
-//-------
+      //-------
 
     case (FindSecondCupPlacement):
       while(TCounter == 3){
@@ -1270,6 +1322,7 @@ void stage4(){
       }
     }
     break;
+    */
   }
 
 }
@@ -1281,6 +1334,13 @@ void stage4(){
 void loop(){
   current_stage = FOURTH;
   // while(true){
+
+  //     if(digitalRead(CupDist) == LOW){
+  //       Grab();
+  //       stop();
+  //       lastTime =millis();
+  //     }
+  // }
 
   // if(digitalRead(Camera_center) != LOW){
   //   turnInPlaceL();
